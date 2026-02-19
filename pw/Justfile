@@ -1,0 +1,33 @@
+# 1Password CLI setup tasks
+
+# List available recipes
+default:
+    @just --list
+
+# Install 1Password CLI via Homebrew
+install:
+    brew install --cask 1password-cli
+
+# Verify the installation
+verify:
+    op --version
+
+# Sign in to 1Password
+signin:
+    eval $(op signin)
+
+# List vaults to confirm everything works
+test:
+    op vault list
+
+# Update 1Password CLI
+update:
+    brew upgrade --cask 1password-cli
+
+# Get the github/260200-token value from 1Password
+token:
+    op item get "github/260200-token" --vault Private --fields password --reveal
+
+# Get the github/260200-token-classic value from 1Password
+token-classic:
+    op item get "github/260200-token-classic" --vault Private --fields password --reveal

@@ -1,0 +1,230 @@
+# Sandbox image name and tag
+name := env("SANDBOX_NAME", "sandbox")
+tag := env("SANDBOX_TAG", "latest")
+image := name + ":" + tag
+
+# Directory containing this Justfile
+root := justfile_directory()
+
+# Dockerfile path
+dockerfile := root / "Dockerfile"
+
+# Default CPUs and memory for the container
+cpus := "8"
+memory := "8g"
+
+# Builder CPUs and memory
+builder_cpus := "8"
+builder_memory := "8g"
+
+# GHCR settings
+ghcr_name := env("GHCR_NAME", "")
+ghcr_image := env("GHCR_IMAGE", if ghcr_name != "" { "ghcr.io/" + ghcr_name + "/" + name } else { "" })
+
+# Tailscale state directory on host (persists across container runs)
+ts_state := env("HOME") / ".tailscale-container"
+
+# List available recipes (default)
+default:
+    @just --list
+
+# --- System ---
+
+# Start the Apple container system service
+system-start:
+    container system start
+
+# Stop the Apple container system service
+system-stop:
+    container system stop
+
+# --- Image ---
+
+# Build the sandbox image
+image-build:
+    container build --tag {{image}} --file {{dockerfile}} {{root}}
+
+# Build with increased builder resources (for Homebrew-heavy images)
+image-build-big:
+    -container builder stop
+    -container builder delete
+    container builder start --cpus {{builder_cpus}} --memory {{builder_memory}}
+    container build --tag {{image}} --file {{dockerfile}} {{root}}
+
+# List all images
+image-list:
+    container image list
+
+# Remove the local sandbox image
+image-clean:
+    container image delete {{image}}
+
+# Reset the builder (useful if builds are failing)
+image-reset-builder:
+    -container builder stop
+    -container builder delete
+
+# --- GHCR ---
+
+# (private) Ensure GHCR env vars are set
+[private]
+_ghcr-check:
+    #!/usr/bin/env bash
+    if [ -z "${GHCR_NAME:-}" ] && [ -z "${GHCR_IMAGE:-}" ]; then
+        echo "Error: GHCR_NAME (or GHCR_IMAGE) must be set"
+        exit 1
+    fi
+
+# Login to GitHub Container Registry
+image-login:
+    #!/usr/bin/env bash
+    missing=""
+    [ -z "${GHCR_NAME:-}" ] && missing="${missing} GHCR_NAME"
+    [ -z "${GHCR_TOKEN:-}" ] && missing="${missing} GHCR_TOKEN"
+    if [ -n "$missing" ]; then
+        echo "Error: the following environment variable(s) must be set:${missing}"
+        exit 1
+    fi
+    echo "$GHCR_TOKEN" | container registry login ghcr.io --username "$GHCR_NAME" --password-stdin
+
+# Tag image for GitHub Container Registry
+image-tag: _ghcr-check
+    container image tag {{image}} {{ghcr_image}}:{{tag}}
+
+# Push image to GitHub Container Registry
+image-push: _ghcr-check
+    container image push {{ghcr_image}}:{{tag}}
+
+# Pull pre-built image from GHCR
+image-pull: _ghcr-check
+    container image pull {{ghcr_image}}:{{tag}}
+
+# Build, tag, and push to GHCR
+image-release: image-build image-tag image-push
+
+# --- Run ---
+
+# GH_TOKEN passthrough (passes --env GH_TOKEN if set in host environment)
+gh_token_flag := if env("GH_TOKEN", "") != "" { "--env GH_TOKEN" } else { "" }
+
+# Run an interactive shell with current directory mounted
+run:
+    container run -it --rm \
+      --cpus {{cpus}} \
+      --memory {{memory}} \
+      {{gh_token_flag}} \
+      --volume {{invocation_directory()}}:/home/agent/pwd \
+      --workdir /home/agent/pwd \
+      {{image}} /bin/bash
+
+# Run the GHCR image with current directory mounted
+run-ghcr: _ghcr-check
+    container run -it --rm \
+      --cpus {{cpus}} \
+      --memory {{memory}} \
+      {{gh_token_flag}} \
+      --volume {{invocation_directory()}}:/home/agent/pwd \
+      --workdir /home/agent/pwd \
+      {{ghcr_image}}:{{tag}} /bin/bash
+
+# Run with a project directory mounted (e.g., just run-project ~/myproject -- --env FOO=bar)
+run-project project *args:
+    container run -it --rm \
+      --cpus {{cpus}} \
+      --memory {{memory}} \
+      --ssh \
+      {{gh_token_flag}} \
+      --volume {{project}}:/home/agent/project \
+      --workdir /home/agent/project \
+      {{args}} \
+      {{image}} /bin/bash
+
+# --- Named Containers ---
+
+# Create a named persistent sandbox (e.g., just create-named my-sandbox ~/projects)
+create-named container_name project:
+    container run -d --name {{container_name}} \
+      --cpus {{cpus}} \
+      --memory {{memory}} \
+      --ssh \
+      {{gh_token_flag}} \
+      --volume {{project}}:/home/agent/project \
+      {{image}} /bin/bash -c "sleep infinity"
+
+# Attach to a named sandbox (e.g., just attach my-sandbox)
+attach container_name:
+    container exec -it {{container_name}} /bin/bash
+
+# Start a stopped named sandbox
+start container_name:
+    container start {{container_name}}
+
+# Stop a named sandbox
+stop container_name:
+    container stop {{container_name}}
+
+# Delete a named sandbox (stops first if running)
+delete container_name:
+    -container stop {{container_name}}
+    container delete {{container_name}}
+
+# List all containers
+list:
+    container list --all
+
+# --- Tailscale ---
+
+# Run with Tailscale in userspace mode, SSH enabled, current directory mounted
+run-tailscale:
+    #!/usr/bin/env bash
+    mkdir -p {{ts_state}}
+    container run -it --rm \
+      --cpus {{cpus}} \
+      --memory {{memory}} \
+      {{gh_token_flag}} \
+      --volume {{invocation_directory()}}:/home/agent/pwd \
+      --volume {{ts_state}}:/home/agent/.tailscale \
+      {{image}} /bin/bash -c '\
+        sudo tailscaled --tun=userspace-networking --statedir=/home/agent/.tailscale --socket=/tmp/tailscaled.sock --socks5-server=localhost:1055 &\
+        sleep 2 && \
+        sudo tailscale --socket=/tmp/tailscaled.sock up --ssh && \
+        echo "alias tailscale=\"sudo tailscale --socket=/tmp/tailscaled.sock\"" >> ~/.bashrc && \
+        exec /bin/bash'
+
+# Run with Tailscale using an auth key (non-interactive login)
+run-tailscale-authkey:
+    #!/usr/bin/env bash
+    mkdir -p {{ts_state}}
+    container run -it --rm \
+      --cpus {{cpus}} \
+      --memory {{memory}} \
+      {{gh_token_flag}} \
+      --volume {{invocation_directory()}}:/home/agent/pwd \
+      --volume {{ts_state}}:/home/agent/.tailscale \
+      --env TS_AUTHKEY=${TS_AUTHKEY} \
+      {{image}} /bin/bash -c '\
+        sudo tailscaled --tun=userspace-networking --statedir=/home/agent/.tailscale --socket=/tmp/tailscaled.sock --socks5-server=localhost:1055 &\
+        sleep 2 && \
+        sudo tailscale --socket=/tmp/tailscaled.sock up --ssh --authkey=$TS_AUTHKEY && \
+        echo "alias tailscale=\"sudo tailscale --socket=/tmp/tailscaled.sock\"" >> ~/.bashrc && \
+        exec /bin/bash'
+
+# Install and start Tailscale with SSH inside this sandbox (run from within the container)
+tailscale-up:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! command -v tailscaled &>/dev/null; then
+        echo "Installing Tailscale..."
+        curl -fsSL https://tailscale.com/install.sh | sudo sh -s -- --quiet
+    fi
+    echo "Starting tailscaled..."
+    sudo tailscaled --tun=userspace-networking --socket=/tmp/tailscaled.sock --socks5-server=localhost:1055 &>/dev/null &
+    sleep 2
+    echo "Bringing Tailscale up with SSH..."
+    sudo tailscale --socket=/tmp/tailscaled.sock up --ssh
+    echo 'alias tailscale="sudo tailscale --socket=/tmp/tailscaled.sock"' >> ~/.bashrc
+    echo "Done. You can now SSH in via: tailscale ssh agent@$(sudo tailscale --socket=/tmp/tailscaled.sock status --json 2>/dev/null | grep -o '"DNSName":"[^"]*' | head -1 | cut -d'"' -f4)"
+
+# Check Tailscale status (run from within the container)
+tailscale-status:
+    sudo tailscale --socket=/tmp/tailscaled.sock status
