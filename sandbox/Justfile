@@ -10,12 +10,12 @@ root := justfile_directory()
 dockerfile := root / "Dockerfile"
 
 # Default CPUs and memory for the container
-cpus := "8"
-memory := "8g"
+cpus := env("SANDBOX_CPUS", "4")
+memory := env("SANDBOX_MEMORY", "4g")
 
 # Builder CPUs and memory
-builder_cpus := "8"
-builder_memory := "8g"
+builder_cpus := env("SANDBOX_BUILDER_CPUS", cpus)
+builder_memory := env("SANDBOX_BUILDER_MEMORY", memory)
 
 # GHCR settings
 ghcr_name := env("GHCR_NAME", "")
@@ -132,7 +132,6 @@ run-project project *args:
     container run -it --rm \
       --cpus {{cpus}} \
       --memory {{memory}} \
-      --ssh \
       {{gh_token_flag}} \
       --volume {{project}}:/home/agent/project \
       --workdir /home/agent/project \
@@ -146,7 +145,6 @@ create-named container_name project:
     container run -d --name {{container_name}} \
       --cpus {{cpus}} \
       --memory {{memory}} \
-      --ssh \
       {{gh_token_flag}} \
       --volume {{project}}:/home/agent/project \
       {{image}} /bin/bash -c "sleep infinity"

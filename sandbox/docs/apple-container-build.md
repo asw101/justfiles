@@ -150,7 +150,6 @@ container run -it --rm \
   --env GH_TOKEN=ghp_... \
   --env ANTHROPIC_API_KEY=sk-ant-... \
   --env OPENAI_API_KEY=sk-... \
-  --ssh \
   sandbox /bin/bash
 ```
 
@@ -169,7 +168,6 @@ Instead of `--rm`, create a named container you can stop/restart:
 container run -d --name my-sandbox \
   --cpus 8 --memory 8g \
   --volume ~/projects:/home/agent/projects \
-  --ssh \
   sandbox /bin/bash -c "sleep infinity"
 
 # Attach to it
