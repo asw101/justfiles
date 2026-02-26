@@ -1,0 +1,24 @@
+# Keychain item name for the SP credentials blob
+token_name := env("AZR_TOKEN_NAME", "260200-azr-token")
+
+# List available recipes
+default:
+    @just --list
+
+# Create an Azure service principal and store the JSON blob in the keychain
+token-set:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Creating service principal '{{token_name}}'..."
+    creds=$(az ad sp create-for-rbac \
+      --name "{{token_name}}" \
+      --years 1 \
+      --output json)
+    echo "Storing credentials in keychain as '{{token_name}}'..."
+    security delete-generic-password -s "{{token_name}}" 2>/dev/null || true
+    security add-generic-password -a "$(whoami)" -s "{{token_name}}" -w "$creds"
+    echo "Done. Retrieve with: just token-get"
+
+# Retrieve the stored SP credentials from the keychain
+token-get:
+    @security find-generic-password -s "{{token_name}}" -w
