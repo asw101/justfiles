@@ -16,7 +16,7 @@ token-set:
       --output json)
     echo "Storing credentials in keychain as '{{token_name}}'..."
     security delete-generic-password -s "{{token_name}}" 2>/dev/null || true
-    security add-generic-password -a "$(whoami)" -s "{{token_name}}" -w "$creds"
+    security add-generic-password -a "$(whoami)" -s "{{token_name}}" -w "$(echo "$creds" | jq -c)"
     echo "Done. Retrieve with: just token-get"
 
 # Retrieve the stored SP credentials from the keychain
