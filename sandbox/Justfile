@@ -107,12 +107,13 @@ image-release: image-build image-tag image-push
 # GH_TOKEN passthrough (passes --env GH_TOKEN if set in host environment)
 gh_token_flag := if env("GH_TOKEN", "") != "" { "--env GH_TOKEN" } else { "" }
 
-# Run an interactive shell with current directory mounted
-run:
+# Run an interactive shell with current directory mounted (e.g., just run --env FOO=bar)
+run *args:
     container run -it --rm \
       --cpus {{cpus}} \
       --memory {{memory}} \
       {{gh_token_flag}} \
+      {{args}} \
       --volume {{invocation_directory()}}:/home/agent/pwd \
       --workdir /home/agent/pwd \
       {{image}} /bin/bash

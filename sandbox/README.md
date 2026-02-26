@@ -28,12 +28,26 @@ Run `just` to see all available recipes. Highlights:
 | Recipe | Description |
 |---|---|
 | `image-build` | Build the sandbox image |
-| `run` | Interactive shell with current directory mounted |
+| `run [args]` | Interactive shell with current directory mounted |
 | `run-project <project> [args]` | Run with SSH and a project directory mounted |
 | `create-named <name> <project>` | Create a persistent named sandbox |
 | `attach <name>` | Attach to a named sandbox |
 | `image-release` | Build, tag, and push to GHCR |
 | `run-tailscale` | Run with Tailscale networking |
+
+## Passing Environment Variables
+
+Pass extra env vars into the container with `--env`:
+
+```bash
+# Pass a variable with a value
+just run --env FOO=bar
+
+# Pass through a host variable
+just run --env MY_SECRET
+```
+
+`GH_TOKEN` is passed through automatically when set.
 
 ## Run from Anywhere
 
