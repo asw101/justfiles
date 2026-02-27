@@ -7,6 +7,8 @@ PW_SOURCE := env("PW_SOURCE", "1password")
 # Overrideable default secret name
 PW_NAME := env("PW_NAME", "github/260200-token")
 
+set positional-arguments
+
 # List available recipes
 default:
     @just --list
@@ -30,9 +32,9 @@ secret-get name=PW_NAME:
 secret-set value name=PW_NAME:
     #!/usr/bin/env bash
     if [[ "{{PW_SOURCE}}" == "keychain" ]]; then
-        security add-generic-password -U -s "{{name}}" -a "github" -w "{{value}}"
+        security add-generic-password -U -s "{{name}}" -a "github" -w "$1"
     else
-        op item edit "{{name}}" password="{{value}}" --vault Private
+        op item edit "{{name}}" password="$1" --vault Private
     fi
 
 # --- 1Password CLI ---
