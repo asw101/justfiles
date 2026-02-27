@@ -13,25 +13,30 @@ Recipes for storing and retrieving secrets via [1Password CLI](https://developer
 
 | Recipe       | Description                                      |
 |--------------|--------------------------------------------------|
-| `install`    | Install 1Password CLI via Homebrew               |
-| `verify`     | Check the installed `op` version                 |
-| `signin`     | Sign in to your 1Password account                |
-| `test`       | List vaults to confirm everything works          |
-| `update`     | Update 1Password CLI via Homebrew                |
 | `secret-get` | Retrieve a secret by name (uses `PW_SOURCE`)    |
 | `secret-set` | Store a secret by name (uses `PW_SOURCE`)       |
+
+### 1Password CLI
+
+| Recipe       | Description                                      |
+|--------------|--------------------------------------------------|
+| `op-install` | Install 1Password CLI via Homebrew               |
+| `op-verify`  | Check the installed `op` version                 |
+| `op-signin`  | Sign in to your 1Password account                |
+| `op-test`    | List vaults to confirm everything works          |
+| `op-update`  | Update 1Password CLI via Homebrew                |
 
 ## Setup
 
 ```bash
 # Install
-pw install
+pw op-install
 
 # Sign in (first time — will prompt to add account)
-pw signin
+pw op-signin
 
 # Verify
-pw test
+pw op-test
 ```
 
 ## Usage

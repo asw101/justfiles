@@ -11,27 +11,12 @@ PW_NAME := env("PW_NAME", "github/260200-token")
 default:
     @just --list
 
-# Install 1Password CLI via Homebrew
-install:
-    brew install --cask 1password-cli
-
-# Verify the installation
-verify:
-    op --version
-
-# Sign in to 1Password
-signin:
-    eval $(op signin)
-
-# List vaults to confirm everything works
-test:
-    op vault list
-
-# Update 1Password CLI
-update:
-    brew upgrade --cask 1password-cli
+# Show documentation
+docs:
+    @cat "{{justfile_directory()}}/README.md"
 
 # Get a secret by name (uses PW_SOURCE)
+[group('1. Secret')]
 secret-get name=PW_NAME:
     #!/usr/bin/env bash
     if [[ "{{PW_SOURCE}}" == "keychain" ]]; then
@@ -41,12 +26,40 @@ secret-get name=PW_NAME:
     fi
 
 # Set a secret by name (uses PW_SOURCE)
-secret-set name=PW_NAME value:
+[group('1. Secret')]
+secret-set value name=PW_NAME:
     #!/usr/bin/env bash
     if [[ "{{PW_SOURCE}}" == "keychain" ]]; then
         security add-generic-password -U -s "{{name}}" -a "github" -w "{{value}}"
     else
         op item edit "{{name}}" password="{{value}}" --vault Private
     fi
+
+# --- 1Password CLI ---
+
+# Install 1Password CLI via Homebrew
+[group('2. 1Password CLI')]
+op-install:
+    brew install --cask 1password-cli
+
+# Verify the installation
+[group('2. 1Password CLI')]
+op-verify:
+    op --version
+
+# Sign in to 1Password
+[group('2. 1Password CLI')]
+op-signin:
+    eval $(op signin)
+
+# List vaults to confirm everything works
+[group('2. 1Password CLI')]
+op-test:
+    op vault list
+
+# Update 1Password CLI
+[group('2. 1Password CLI')]
+op-update:
+    brew upgrade --cask 1password-cli
 
 
