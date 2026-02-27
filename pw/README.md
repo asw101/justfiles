@@ -1,4 +1,4 @@
-# pw — Password/Token Management Justfile
+# pw — Password/Secret Management Justfile
 
 Recipes for storing and retrieving secrets via [1Password CLI](https://developer.1password.com/docs/cli/) or macOS Keychain.
 
