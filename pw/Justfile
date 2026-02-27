@@ -1,4 +1,11 @@
-# 1Password CLI setup tasks
+# Password/token management (1Password + macOS Keychain)
+# Set PW_SOURCE to "keychain" or "1password" (default: 1password)
+
+# Overrideable source: "1password" or "keychain"
+PW_SOURCE := env("PW_SOURCE", "1password")
+
+# Overrideable default secret name
+PW_NAME := env("PW_NAME", "github/260200-token")
 
 # List available recipes
 default:
@@ -24,28 +31,22 @@ test:
 update:
     brew upgrade --cask 1password-cli
 
-# Get the github/260200-token value from 1Password
-token:
-    op item get "github/260200-token" --vault Private --fields password --reveal
+# Get a secret by name (uses PW_SOURCE)
+secret-get name=PW_NAME:
+    #!/usr/bin/env bash
+    if [[ "{{PW_SOURCE}}" == "keychain" ]]; then
+        security find-generic-password -s "{{name}}" -a "github" -w
+    else
+        op item get "{{name}}" --vault Private --fields password --reveal
+    fi
 
-# Get the github/260200-token-classic value from 1Password
-token-classic:
-    op item get "github/260200-token-classic" --vault Private --fields password --reveal
+# Set a secret by name (uses PW_SOURCE)
+secret-set name=PW_NAME value:
+    #!/usr/bin/env bash
+    if [[ "{{PW_SOURCE}}" == "keychain" ]]; then
+        security add-generic-password -U -s "{{name}}" -a "github" -w "{{value}}"
+    else
+        op item edit "{{name}}" password="{{value}}" --vault Private
+    fi
 
-# --- macOS Keychain equivalents ---
 
-# Get the github/260200-token from macOS Keychain
-kc-token:
-    security find-generic-password -s "github/260200-token" -a "github" -w
-
-# Set the github/260200-token in macOS Keychain
-kc-token-set value:
-    security add-generic-password -U -s "github/260200-token" -a "github" -w "{{value}}"
-
-# Get the github/260200-token-classic from macOS Keychain
-kc-token-classic:
-    security find-generic-password -s "github/260200-token-classic" -a "github" -w
-
-# Set the github/260200-token-classic in macOS Keychain
-kc-token-classic-set value:
-    security add-generic-password -U -s "github/260200-token-classic" -a "github" -w "{{value}}"

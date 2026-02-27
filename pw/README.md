@@ -1,22 +1,25 @@
-# pw — 1Password CLI Justfile
+# pw — Password/Token Management Justfile
 
-Recipes for installing, configuring, and using the [1Password CLI](https://developer.1password.com/docs/cli/) (`op`).
+Recipes for storing and retrieving secrets via [1Password CLI](https://developer.1password.com/docs/cli/) or macOS Keychain.
+
+## Environment Variables
+
+| Variable    | Default                | Description                          |
+|-------------|------------------------|--------------------------------------|
+| `PW_SOURCE` | `1password`            | Backend: `1password` or `keychain`   |
+| `PW_NAME`   | `github/260200-token`  | Default secret name for get/set      |
 
 ## Recipes
 
-| Recipe    | Description                                      |
-|-----------|--------------------------------------------------|
-| `install` | Install 1Password CLI via Homebrew               |
-| `verify`  | Check the installed `op` version                 |
-| `signin`  | Sign in to your 1Password account                |
-| `test`    | List vaults to confirm everything works          |
-| `update`  | Update 1Password CLI via Homebrew                |
-| `token`   | Retrieve the `github/260200-token` from 1Password |
-| `token-classic` | Retrieve the `github/260200-token-classic` from 1Password |
-| `kc-token` | Retrieve the `github/260200-token` from macOS Keychain |
-| `kc-token-set` | Store the `github/260200-token` in macOS Keychain |
-| `kc-token-classic` | Retrieve the `github/260200-token-classic` from macOS Keychain |
-| `kc-token-classic-set` | Store the `github/260200-token-classic` in macOS Keychain |
+| Recipe       | Description                                      |
+|--------------|--------------------------------------------------|
+| `install`    | Install 1Password CLI via Homebrew               |
+| `verify`     | Check the installed `op` version                 |
+| `signin`     | Sign in to your 1Password account                |
+| `test`       | List vaults to confirm everything works          |
+| `update`     | Update 1Password CLI via Homebrew                |
+| `secret-get` | Retrieve a secret by name (uses `PW_SOURCE`)    |
+| `secret-set` | Store a secret by name (uses `PW_SOURCE`)       |
 
 ## Setup
 
@@ -31,20 +34,29 @@ pw signin
 pw test
 ```
 
+## Usage
+
+```bash
+# Get the default secret (github/260200-token) from 1Password
+pw secret-get
+
+# Get a specific secret
+pw secret-get "github/260200-token-classic"
+
+# Set the default secret
+pw secret-set "ghp_yourTokenHere"
+
+# Set a specific secret
+pw secret-set "github/260200-token-classic" "ghp_yourTokenHere"
+
+# Use macOS Keychain instead
+PW_SOURCE=keychain pw secret-get
+PW_SOURCE=keychain pw secret-set "ghp_yourTokenHere"
+```
+
 ## Tips
 
 - If you have the 1Password desktop app, enable CLI integration under
   **Settings → Developer → Integrate with 1Password CLI** for biometric unlock.
-- Run `pw token` to fetch a GitHub token stored in your Private vault.
-
-## macOS Keychain
-
-As an alternative to 1Password, you can store and retrieve tokens using the macOS Keychain:
-
-```bash
-# Store a token (will create or update)
-pw kc-token-set ghp_yourTokenHere
-
-# Retrieve it
-pw kc-token
-```
+- Set `PW_SOURCE=keychain` in your shell profile to permanently switch to macOS Keychain.
+- Override `PW_NAME` to change the default secret name without passing it each time.
