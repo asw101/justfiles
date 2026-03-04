@@ -68,3 +68,7 @@ RUN echo '#!/bin/bash\nexec claude --dangerously-skip-permissions "$@"' > /usr/l
     echo '#!/bin/bash\nexec copilot --allow-all-tools "$@"' > /usr/local/bin/copilot-auto && chmod +x /usr/local/bin/copilot-auto
 
 USER agent
+
+# Disable co-author attribution in Copilot CLI
+RUN mkdir -p /home/agent/.copilot && \
+    echo '{"include_coauthor":false}' > /home/agent/.copilot/config.json
