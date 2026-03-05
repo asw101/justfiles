@@ -40,16 +40,16 @@ system-stop:
 
 # --- Image ---
 
-# Build the sandbox image
-image-build:
-    container build --tag {{image}} --file {{dockerfile}} {{root}}
+# Build the sandbox image (set no_cache="--no-cache" to build without cache)
+image-build *no_cache:
+    container build {{no_cache}} --tag {{image}} --file {{dockerfile}} {{root}}
 
-# Build with increased builder resources (for Homebrew-heavy images)
-image-build-big:
+# Build with increased builder resources (for Homebrew-heavy images; pass --no-cache to skip cache)
+image-build-big *no_cache:
     -container builder stop
     -container builder delete
     container builder start --cpus {{builder_cpus}} --memory {{builder_memory}}
-    container build --tag {{image}} --file {{dockerfile}} {{root}}
+    container build {{no_cache}} --tag {{image}} --file {{dockerfile}} {{root}}
 
 # List all images
 image-list:
