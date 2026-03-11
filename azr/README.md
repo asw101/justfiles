@@ -1,6 +1,6 @@
 # azr
 
-Create an Azure service principal and store the credentials JSON via the `pw` Justfile (supports 1Password and macOS Keychain).
+Create an Azure service principal and store the credentials JSON via the `secret` Justfile (supports 1Password and macOS Keychain).
 
 ## Recipes
 
@@ -14,7 +14,7 @@ Create an Azure service principal and store the credentials JSON via the `pw` Ju
 | Variable          | Default              | Description                              |
 |-------------------|----------------------|------------------------------------------|
 | `AZR_SECRET_NAME` | `260200-azr-token`   | Secret name for the stored credentials   |
-| `PW_SOURCE`       | `keychain`           | Backend: `keychain` or `1password`       |
+| `SECRET_SOURCE`   | `keychain`           | Backend: `keychain` or `1password`       |
 
 ## Usage
 
@@ -33,5 +33,5 @@ azr secret-get "my-custom-name"
 AZR_SECRET_NAME=my-custom-name azr secret-get
 
 # Use 1Password instead of keychain
-PW_SOURCE=1password azr secret-get
+SECRET_SOURCE=1password azr secret-get
 ```

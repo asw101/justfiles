@@ -1,8 +1,8 @@
-# Path to the pw Justfile
-pw := justfile_directory() / "../pw/Justfile"
+# Path to the secret Justfile
+secret := justfile_directory() / "../secret/Justfile"
 
 # Default to keychain for azr secrets
-export PW_SOURCE := env("PW_SOURCE", "keychain")
+export SECRET_SOURCE := env("SECRET_SOURCE", "keychain")
 
 # Secret name for the SP credentials blob
 secret_name := env("AZR_SECRET_NAME", "260200-azr-token")
@@ -21,9 +21,9 @@ secret-set name=secret_name:
       --years 1 \
       --output json)
     echo "Storing credentials as '{{name}}'..."
-    just --justfile "{{pw}}" secret-set "$(echo "$creds" | jq -c)" "{{name}}"
+    just --justfile "{{secret}}" set "$(echo "$creds" | jq -c)" "{{name}}"
     echo "Done. Retrieve with: just secret-get"
 
 # Retrieve the stored SP credentials
 secret-get name=secret_name:
-    @just --justfile "{{pw}}" secret-get "{{name}}"
+    @just --justfile "{{secret}}" get "{{name}}"
