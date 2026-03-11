@@ -1,0 +1,3 @@
+# Deprecated — use "secret" instead
+default:
+    @echo 'pw has been replaced by "secret". Use the secret recipe instead.'
