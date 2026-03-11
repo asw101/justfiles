@@ -4,3 +4,4 @@ A collection of [just](https://github.com/casey/just) command runners. Each subd
 
 - **[sandbox](sandbox/)** — Apple Container-based dev sandboxes
 - **[pw](pw/)** — Password manager CLI setup and helpers
+- **[secret](secret/)** — Password/secret management (get/set interface)
