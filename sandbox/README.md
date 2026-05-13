@@ -29,6 +29,7 @@ Run `just` to see all available recipes. Highlights:
 |---|---|
 | `image-build` | Build the sandbox image |
 | `run [args]` | Interactive shell with current directory mounted |
+| `run-copilot [args]` | Pull `GH_TOKEN` from [`secret`](../secret/), update Copilot CLI, launch in YOLO mode |
 | `run-project <project> [args]` | Run with SSH and a project directory mounted |
 | `create-named <name> <project>` | Create a persistent named sandbox |
 | `attach <name>` | Attach to a named sandbox |
@@ -48,6 +49,24 @@ just run --env MY_SECRET
 ```
 
 `GH_TOKEN` is passed through automatically when set.
+
+## YOLO Copilot Run
+
+`run-copilot` automates a common workflow: it pulls `GH_TOKEN` from the
+sibling [`secret`](../secret/) Justfile, runs `copilot update` inside the
+container, then launches `copilot --allow-all-tools` (YOLO mode).
+
+```bash
+# Uses SECRET_NAME (default: github/260200-token) from the secret Justfile
+sandbox run-copilot
+
+# Override the secret name or backend
+SECRET_NAME=github/my-token sandbox run-copilot
+SECRET_SOURCE=keychain sandbox run-copilot
+
+# Pass extra container flags after the recipe name
+sandbox run-copilot --env FOO=bar
+```
 
 ## Run from Anywhere
 

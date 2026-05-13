@@ -9,6 +9,9 @@ root := justfile_directory()
 # Dockerfile path
 dockerfile := root / "Dockerfile"
 
+# Sibling `secret` Justfile (used by run-copilot to fetch GH_TOKEN)
+secret_justfile := root / ".." / "secret" / "Justfile"
+
 # Default CPUs and memory for the container
 cpus := env("SANDBOX_CPUS", "4")
 memory := env("SANDBOX_MEMORY", "4g")
@@ -37,6 +40,16 @@ system-start:
 # Stop the Apple container system service
 system-stop:
     container system stop
+
+# (private) Ensure the Apple container system service is running; start it if not
+[private]
+_system-ensure:
+    #!/usr/bin/env bash
+    status="$(container system status 2>/dev/null | awk '$1=="status"{print $2}')"
+    if [ "$status" != "running" ]; then
+        echo "Apple container system not running; starting..."
+        container system start
+    fi
 
 # --- Image ---
 
@@ -108,7 +121,7 @@ image-release: image-build image-tag image-push
 gh_token_flag := if env("GH_TOKEN", "") != "" { "--env GH_TOKEN" } else { "" }
 
 # Run an interactive shell with current directory mounted (e.g., just run --env FOO=bar)
-run *args:
+run *args: _system-ensure
     container run -it --rm \
       --cpus {{cpus}} \
       --memory {{memory}} \
@@ -117,6 +130,21 @@ run *args:
       --volume {{invocation_directory()}}:/home/agent/pwd \
       --workdir /home/agent/pwd \
       {{image}} /bin/bash
+
+# Run with GH_TOKEN auto-pulled from `secret`, update Copilot CLI, then launch Copilot in YOLO mode
+run-copilot *args: _system-ensure
+    #!/usr/bin/env bash
+    set -euo pipefail
+    GH_TOKEN="$(just --justfile {{secret_justfile}} get)"
+    export GH_TOKEN
+    container run -it --rm \
+      --cpus {{cpus}} \
+      --memory {{memory}} \
+      --env GH_TOKEN \
+      {{args}} \
+      --volume {{invocation_directory()}}:/home/agent/pwd \
+      --workdir /home/agent/pwd \
+      {{image}} /bin/bash -lc 'copilot update || echo "warning: copilot update failed, continuing"; copilot --allow-all-tools; exec /bin/bash'
 
 # Run the GHCR image with current directory mounted
 run-ghcr: _ghcr-check
