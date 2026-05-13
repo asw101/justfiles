@@ -36,11 +36,11 @@ WORKDIR /home/agent
 RUN NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
 # Add brew to PATH
-ENV PATH="/home/agent/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/bin:${PATH}"
+ENV PATH="/home/agent/.local/bin:/home/agent/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/bin:${PATH}"
 
 # Set a short prompt, add brew to PATH for login shells (Tailscale SSH),
 # and auto-attach to tmux on SSH login
-RUN echo 'export PATH="/home/agent/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/bin:$PATH"' >> /home/agent/.bashrc && \
+RUN echo 'export PATH="/home/agent/.local/bin:/home/agent/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/bin:$PATH"' >> /home/agent/.bashrc && \
     echo "PS1='\\W \$ '" >> /home/agent/.bashrc && \
     echo 'if [ -n "$SSH_CONNECTION" ] && [ -z "$TMUX" ]; then tmux attach -t main 2>/dev/null || tmux new -s main; fi' >> /home/agent/.bashrc && \
     echo '[ -f ~/.bashrc ] && . ~/.bashrc' > /home/agent/.profile
@@ -57,9 +57,14 @@ RUN printf '%s\n' \
     'set -g history-limit 50000' \
     > /home/agent/.tmux.conf
 
-# Install gh, just, copilot-cli (prerelease), codex, and claude-code
-RUN brew install gh just copilot-cli@prerelease codex && \
-    brew install --cask claude-code
+# Install gh, just, and codex
+RUN brew install gh just codex
+
+# Install Claude Code (latest release, direct binary download)
+RUN curl -fsSL https://claude.ai/install.sh | bash
+
+# Install Copilot CLI (latest release, direct binary download)
+RUN curl -fsSL https://gh.io/copilot-install | bash
 
 # Create wrapper scripts
 USER root
