@@ -47,6 +47,13 @@ default:
 
 # --- System ---
 
+# Upgrade apple-container (stops system, runs update script, restarts)
+[group('system')]
+upgrade:
+    container system stop
+    /usr/local/bin/update-container.sh
+    container system start
+
 # Start the Apple container system service
 [group('system')]
 system-start:
