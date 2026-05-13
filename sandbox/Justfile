@@ -14,7 +14,7 @@ secret_justfile := root / ".." / "secret" / "Justfile"
 
 # Default CPUs and memory for the container
 cpus := env("SANDBOX_CPUS", "4")
-memory := env("SANDBOX_MEMORY", "4g")
+memory := env("SANDBOX_MEMORY", "3g")
 
 # Builder CPUs and memory
 builder_cpus := env("SANDBOX_BUILDER_CPUS", cpus)
@@ -218,6 +218,30 @@ stop container_name: _system-ensure
 delete container_name: _system-ensure
     -container stop {{container_name}}
     container delete {{container_name}}
+
+# Kill and remove all sandbox containers (running or stopped) whose image contains our name
+[group('named')]
+kill-all: _system-ensure
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Looking for containers with image containing: {{name}}"
+    container list --all 2>/dev/null || true
+    echo "---"
+    # Apple's `container list --format` only supports `json` or `table`; parse the
+    # default table output (cols: ID IMAGE OS ARCH STATE ADDR CPUS MEMORY STARTED).
+    ids="$(container list --all 2>/dev/null | awk -v name='{{name}}' 'NR>1 && index($2, name)>0 {print $1}' || true)"
+    if [ -z "$ids" ]; then
+        echo "No sandbox containers to kill."
+        exit 0
+    fi
+    echo "Killing all sandbox containers..."
+    for id in $ids; do
+        if container delete --force "$id" >/dev/null 2>&1; then
+            echo "  killed $id"
+        else
+            echo "  failed to kill $id"
+        fi
+    done
 
 # List all containers
 [group('named')]
