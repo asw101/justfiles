@@ -27,6 +27,20 @@ ghcr_image := env("GHCR_IMAGE", if ghcr_name != "" { "ghcr.io/" + ghcr_name + "/
 # Tailscale state directory on host (persists across container runs)
 ts_state := env("HOME") / ".tailscale-container"
 
+# In-container mount points
+mount := "/home/agent/pwd"
+project_mount := "/home/agent/project"
+
+# Shared `container run` flags
+run_flags := "-it --rm --cpus " + cpus + " --memory " + memory
+
+# GH_TOKEN passthrough (passes --env GH_TOKEN if set in host environment)
+gh_token_flag := if env("GH_TOKEN", "") != "" { "--env GH_TOKEN" } else { "" }
+
+# Tailscale auth-key passthrough: include --env and --authkey flags when TS_AUTHKEY is set
+ts_authkey_env := if env("TS_AUTHKEY", "") != "" { "--env TS_AUTHKEY" } else { "" }
+ts_authkey_flag := if env("TS_AUTHKEY", "") != "" { "--authkey=$TS_AUTHKEY" } else { "" }
+
 # List available recipes (default)
 default:
     @just --list
@@ -34,10 +48,12 @@ default:
 # --- System ---
 
 # Start the Apple container system service
+[group('system')]
 system-start:
     container system start
 
 # Stop the Apple container system service
+[group('system')]
 system-stop:
     container system stop
 
@@ -54,26 +70,31 @@ _system-ensure:
 # --- Image ---
 
 # Build the sandbox image (set no_cache="--no-cache" to build without cache)
-image-build *no_cache:
+[group('image')]
+image-build *no_cache: _system-ensure
     container build {{no_cache}} --tag {{image}} --file {{dockerfile}} {{root}}
 
 # Build with increased builder resources (for Homebrew-heavy images; pass --no-cache to skip cache)
-image-build-big *no_cache:
+[group('image')]
+image-build-big *no_cache: _system-ensure
     -container builder stop
     -container builder delete
     container builder start --cpus {{builder_cpus}} --memory {{builder_memory}}
     container build {{no_cache}} --tag {{image}} --file {{dockerfile}} {{root}}
 
 # List all images
-image-list:
+[group('image')]
+image-list: _system-ensure
     container image list
 
 # Remove the local sandbox image
-image-clean:
+[group('image')]
+image-clean: _system-ensure
     container image delete {{image}}
 
 # Reset the builder (useful if builds are failing)
-image-reset-builder:
+[group('image')]
+image-reset-builder: _system-ensure
     -container builder stop
     -container builder delete
 
@@ -89,7 +110,8 @@ _ghcr-check:
     fi
 
 # Login to GitHub Container Registry
-image-login:
+[group('ghcr')]
+image-login: _system-ensure
     #!/usr/bin/env bash
     missing=""
     [ -z "${GHCR_NAME:-}" ] && missing="${missing} GHCR_NAME"
@@ -101,142 +123,127 @@ image-login:
     echo "$GHCR_TOKEN" | container registry login ghcr.io --username "$GHCR_NAME" --password-stdin
 
 # Tag image for GitHub Container Registry
-image-tag: _ghcr-check
+[group('ghcr')]
+image-tag: _ghcr-check _system-ensure
     container image tag {{image}} {{ghcr_image}}:{{tag}}
 
 # Push image to GitHub Container Registry
-image-push: _ghcr-check
+[group('ghcr')]
+image-push: _ghcr-check _system-ensure
     container image push {{ghcr_image}}:{{tag}}
 
 # Pull pre-built image from GHCR
-image-pull: _ghcr-check
+[group('ghcr')]
+image-pull: _ghcr-check _system-ensure
     container image pull {{ghcr_image}}:{{tag}}
 
 # Build, tag, and push to GHCR
+[group('ghcr')]
 image-release: image-build image-tag image-push
 
 # --- Run ---
 
-# GH_TOKEN passthrough (passes --env GH_TOKEN if set in host environment)
-gh_token_flag := if env("GH_TOKEN", "") != "" { "--env GH_TOKEN" } else { "" }
-
 # Run an interactive shell with current directory mounted (e.g., just run --env FOO=bar)
+[group('run')]
 run *args: _system-ensure
-    container run -it --rm \
-      --cpus {{cpus}} \
-      --memory {{memory}} \
+    container run {{run_flags}} \
       {{gh_token_flag}} \
       {{args}} \
-      --volume {{invocation_directory()}}:/home/agent/pwd \
-      --workdir /home/agent/pwd \
+      --volume {{invocation_directory()}}:{{mount}} \
+      --workdir {{mount}} \
       {{image}} /bin/bash
 
 # Run with GH_TOKEN auto-pulled from `secret`, update Copilot CLI, then launch Copilot in YOLO mode
+[group('run')]
 run-copilot *args: _system-ensure
     #!/usr/bin/env bash
     set -euo pipefail
     GH_TOKEN="$(just --justfile {{secret_justfile}} get)"
     export GH_TOKEN
-    container run -it --rm \
-      --cpus {{cpus}} \
-      --memory {{memory}} \
+    container run {{run_flags}} \
       --env GH_TOKEN \
       {{args}} \
-      --volume {{invocation_directory()}}:/home/agent/pwd \
-      --workdir /home/agent/pwd \
+      --volume {{invocation_directory()}}:{{mount}} \
+      --workdir {{mount}} \
       {{image}} /bin/bash -lc 'copilot update || echo "warning: copilot update failed, continuing"; copilot --allow-all-tools; exec /bin/bash'
 
 # Run the GHCR image with current directory mounted
-run-ghcr: _ghcr-check
-    container run -it --rm \
-      --cpus {{cpus}} \
-      --memory {{memory}} \
+[group('run')]
+run-ghcr: _ghcr-check _system-ensure
+    container run {{run_flags}} \
       {{gh_token_flag}} \
-      --volume {{invocation_directory()}}:/home/agent/pwd \
-      --workdir /home/agent/pwd \
+      --volume {{invocation_directory()}}:{{mount}} \
+      --workdir {{mount}} \
       {{ghcr_image}}:{{tag}} /bin/bash
 
 # Run with a project directory mounted (e.g., just run-project ~/myproject -- --env FOO=bar)
-run-project project *args:
-    container run -it --rm \
-      --cpus {{cpus}} \
-      --memory {{memory}} \
+[group('run')]
+run-project project *args: _system-ensure
+    container run {{run_flags}} \
       {{gh_token_flag}} \
-      --volume {{project}}:/home/agent/project \
-      --workdir /home/agent/project \
+      --volume {{project}}:{{project_mount}} \
+      --workdir {{project_mount}} \
       {{args}} \
       {{image}} /bin/bash
 
 # --- Named Containers ---
 
 # Create a named persistent sandbox (e.g., just create-named my-sandbox ~/projects)
-create-named container_name project:
+[group('named')]
+create-named container_name project: _system-ensure
     container run -d --name {{container_name}} \
       --cpus {{cpus}} \
       --memory {{memory}} \
       {{gh_token_flag}} \
-      --volume {{project}}:/home/agent/project \
+      --volume {{project}}:{{project_mount}} \
       {{image}} /bin/bash -c "sleep infinity"
 
 # Attach to a named sandbox (e.g., just attach my-sandbox)
-attach container_name:
+[group('named')]
+attach container_name: _system-ensure
     container exec -it {{container_name}} /bin/bash
 
 # Start a stopped named sandbox
-start container_name:
+[group('named')]
+start container_name: _system-ensure
     container start {{container_name}}
 
 # Stop a named sandbox
-stop container_name:
+[group('named')]
+stop container_name: _system-ensure
     container stop {{container_name}}
 
 # Delete a named sandbox (stops first if running)
-delete container_name:
+[group('named')]
+delete container_name: _system-ensure
     -container stop {{container_name}}
     container delete {{container_name}}
 
 # List all containers
-list:
+[group('named')]
+list: _system-ensure
     container list --all
 
 # --- Tailscale ---
 
-# Run with Tailscale in userspace mode, SSH enabled, current directory mounted
-run-tailscale:
-    #!/usr/bin/env bash
+# Run with Tailscale in userspace mode, SSH enabled (set TS_AUTHKEY for non-interactive login)
+[group('tailscale')]
+run-tailscale: _system-ensure
     mkdir -p {{ts_state}}
-    container run -it --rm \
-      --cpus {{cpus}} \
-      --memory {{memory}} \
+    container run {{run_flags}} \
       {{gh_token_flag}} \
-      --volume {{invocation_directory()}}:/home/agent/pwd \
+      {{ts_authkey_env}} \
+      --volume {{invocation_directory()}}:{{mount}} \
       --volume {{ts_state}}:/home/agent/.tailscale \
       {{image}} /bin/bash -c '\
         sudo tailscaled --tun=userspace-networking --statedir=/home/agent/.tailscale --socket=/tmp/tailscaled.sock --socks5-server=localhost:1055 &\
         sleep 2 && \
-        sudo tailscale --socket=/tmp/tailscaled.sock up --ssh && \
-        echo "alias tailscale=\"sudo tailscale --socket=/tmp/tailscaled.sock\"" >> ~/.bashrc && \
-        exec /bin/bash'
-
-# Run with Tailscale using an auth key (non-interactive login)
-run-tailscale-authkey:
-    #!/usr/bin/env bash
-    mkdir -p {{ts_state}}
-    container run -it --rm \
-      --cpus {{cpus}} \
-      --memory {{memory}} \
-      {{gh_token_flag}} \
-      --volume {{invocation_directory()}}:/home/agent/pwd \
-      --volume {{ts_state}}:/home/agent/.tailscale \
-      --env TS_AUTHKEY=${TS_AUTHKEY} \
-      {{image}} /bin/bash -c '\
-        sudo tailscaled --tun=userspace-networking --statedir=/home/agent/.tailscale --socket=/tmp/tailscaled.sock --socks5-server=localhost:1055 &\
-        sleep 2 && \
-        sudo tailscale --socket=/tmp/tailscaled.sock up --ssh --authkey=$TS_AUTHKEY && \
+        sudo tailscale --socket=/tmp/tailscaled.sock up --ssh {{ts_authkey_flag}} && \
         echo "alias tailscale=\"sudo tailscale --socket=/tmp/tailscaled.sock\"" >> ~/.bashrc && \
         exec /bin/bash'
 
 # Install and start Tailscale with SSH inside this sandbox (run from within the container)
+[group('tailscale')]
 tailscale-up:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -253,5 +260,6 @@ tailscale-up:
     echo "Done. You can now SSH in via: tailscale ssh agent@$(sudo tailscale --socket=/tmp/tailscaled.sock status --json 2>/dev/null | grep -o '"DNSName":"[^"]*' | head -1 | cut -d'"' -f4)"
 
 # Check Tailscale status (run from within the container)
+[group('tailscale')]
 tailscale-status:
     sudo tailscale --socket=/tmp/tailscaled.sock status
