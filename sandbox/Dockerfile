@@ -74,6 +74,10 @@ RUN echo '#!/bin/bash\nexec claude --dangerously-skip-permissions "$@"' > /usr/l
 
 USER agent
 
-# Disable co-author attribution in Copilot CLI
+# Copilot CLI config: disable co-author attribution and pre-trust the workspace
 RUN mkdir -p /home/agent/.copilot && \
-    echo '{"include_coauthor":false}' > /home/agent/.copilot/config.json
+    echo '{"include_coauthor":false,"trustedFolders":["/home/agent/pwd"]}' > /home/agent/.copilot/config.json
+
+# Claude Code config: disable co-author attribution
+RUN mkdir -p /home/agent/.claude && \
+    echo '{"attribution":{"commit":"","pr":""}}' > /home/agent/.claude/settings.json
