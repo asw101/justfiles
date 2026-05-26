@@ -172,7 +172,7 @@ run-copilot *args: _system-ensure
       {{args}} \
       --volume {{invocation_directory()}}:{{mount}} \
       --workdir {{mount}} \
-      {{image}} /bin/bash -lc 'copilot update || echo "warning: copilot update failed, continuing"; copilot --allow-all-tools; exec /bin/bash'
+      {{image}} /bin/bash -lc 'copilot update || echo "warning: copilot update failed, continuing"; copilot-auto; exec /bin/bash'
 
 # Run the GHCR image with current directory mounted
 [group('run')]
