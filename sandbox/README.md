@@ -30,6 +30,9 @@ Run `just` to see all available recipes. Highlights:
 | `image-build` | Build the sandbox image |
 | `run [args]` | Interactive shell with current directory mounted |
 | `run-copilot [args]` | Pull `GH_TOKEN` from [`secret`](../secret/), update Copilot CLI, launch in YOLO mode |
+| `run-tmux [args]` | Detached sandbox with persistent tmux session — resumable across terminal disconnects (does not auto-launch Copilot) |
+| `attach-tmux [name]` | Re-attach to the tmux session of a `run-tmux` sandbox |
+| `stop-tmux [name]` | Stop the `run-tmux` sandbox container |
 | `run-project <project> [args]` | Run with SSH and a project directory mounted |
 | `create-named <name> <project>` | Create a persistent named sandbox |
 | `attach <name>` | Attach to a named sandbox |
@@ -67,6 +70,39 @@ SECRET_SOURCE=keychain sandbox run-copilot
 # Pass extra container flags after the recipe name
 sandbox run-copilot --env FOO=bar
 ```
+
+## Resumable Tmux Sandbox
+
+`run-tmux` is an alternative to `run-copilot` for workflows where you want the
+container to survive closing the terminal that started it.
+
+```bash
+# Start a detached sandbox with the current directory mounted; lands you in tmux
+sandbox run-tmux
+
+# Inside the tmux session, launch Copilot yourself (or anything else)
+copilot-auto
+
+# Detach with: C-a d  (container keeps running)
+
+# From any terminal, rejoin:
+sandbox attach-tmux
+
+# When you're done:
+sandbox stop-tmux
+```
+
+Differences vs. `run-copilot`:
+
+- Container runs **detached** (`-d`) with a fixed `--name`, so closing the host
+  terminal does not kill it. Override the name with `TMUX_SANDBOX_NAME=...`.
+- A tmux session named `main` inside the container is the keep-alive — when it
+  ends (e.g. you exit the last shell in it), the container exits and `--rm`
+  cleans it up.
+- It does **not** run `copilot update` or auto-start Copilot — you do that
+  yourself once you're inside the tmux session.
+- Nothing is persisted to the host beyond the mounted working directory, so
+  Copilot sessions live only for the lifetime of the container.
 
 ## Run from Anywhere
 

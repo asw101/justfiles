@@ -37,6 +37,9 @@ run_flags := "-it --rm --cpus " + cpus + " --memory " + memory
 # GH_TOKEN passthrough (passes --env GH_TOKEN if set in host environment)
 gh_token_flag := if env("GH_TOKEN", "") != "" { "--env GH_TOKEN" } else { "" }
 
+# Default container name for the `run-tmux` family of recipes (override via env)
+tmux_sandbox_name := env("TMUX_SANDBOX_NAME", "tmux-sandbox")
+
 # Tailscale auth-key passthrough: include --env and --authkey flags when TS_AUTHKEY is set
 ts_authkey_env := if env("TS_AUTHKEY", "") != "" { "--env TS_AUTHKEY" } else { "" }
 ts_authkey_flag := if env("TS_AUTHKEY", "") != "" { "--authkey=$TS_AUTHKEY" } else { "" }
@@ -173,6 +176,62 @@ run-copilot *args: _system-ensure
       --volume {{invocation_directory()}}:{{mount}} \
       --workdir {{mount}} \
       {{image}} /bin/bash -lc 'copilot update || echo "warning: copilot update failed, continuing"; copilot-auto; exec /bin/bash'
+
+# Detached sandbox in tmux (survives terminal disconnect; run `copilot-auto` yourself inside)
+[group('run')]
+run-tmux *args: _system-ensure
+    #!/usr/bin/env bash
+    set -euo pipefail
+    name="{{tmux_sandbox_name}}"
+    if container inspect "$name" >/dev/null 2>&1; then
+        if ! container start "$name" >/dev/null 2>&1; then
+            echo "Container '$name' exists but couldn't be started." >&2
+            echo "Try: just stop-tmux && just run-tmux" >&2
+            exit 1
+        fi
+        echo "Sandbox '$name' already exists; attaching..."
+    else
+        GH_TOKEN="$(just --justfile {{secret_justfile}} get)"
+        export GH_TOKEN
+        echo "Starting sandbox '$name'..."
+        container run -d --rm \
+          --name "$name" \
+          --cpus {{cpus}} --memory {{memory}} \
+          --env GH_TOKEN \
+          {{args}} \
+          --volume {{invocation_directory()}}:{{mount}} \
+          --workdir {{mount}} \
+          {{image}} /bin/bash -lc '
+            set -e
+            tmux new-session -d -s main
+            while tmux has-session -t main 2>/dev/null; do sleep 2; done
+          ' >/dev/null
+        # Bounded wait for the tmux server + session to come up before we attach
+        ready=0
+        for _ in $(seq 1 20); do
+            if container exec "$name" tmux has-session -t main >/dev/null 2>&1; then
+                ready=1; break
+            fi
+            sleep 0.5
+        done
+        if [ "$ready" -ne 1 ]; then
+            echo "tmux session 'main' did not start in time. Container logs:" >&2
+            container logs "$name" 2>&1 || true
+            container stop "$name" >/dev/null 2>&1 || true
+            exit 1
+        fi
+    fi
+    exec container exec -it "$name" tmux attach -t main
+
+# Attach to the tmux session of a sandbox started with `run-tmux`
+[group('run')]
+attach-tmux name=tmux_sandbox_name: _system-ensure
+    container exec -it {{name}} tmux attach -t main
+
+# Stop the running tmux sandbox (auto-removed because --rm)
+[group('run')]
+stop-tmux name=tmux_sandbox_name: _system-ensure
+    -container stop {{name}}
 
 # Run the GHCR image with current directory mounted
 [group('run')]
