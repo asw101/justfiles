@@ -70,7 +70,7 @@ RUN curl -fsSL https://gh.io/copilot-install | bash
 USER root
 RUN echo '#!/bin/bash\nexec claude --dangerously-skip-permissions "$@"' > /usr/local/bin/claude-auto && chmod +x /usr/local/bin/claude-auto && \
     echo '#!/bin/bash\nexec codex --full-auto "$@"' > /usr/local/bin/codex-auto && chmod +x /usr/local/bin/codex-auto && \
-    echo '#!/bin/bash\nexec copilot --allow-all-tools --model claude-opus-4.7-xhigh "$@"' > /usr/local/bin/copilot-auto && chmod +x /usr/local/bin/copilot-auto
+    echo '#!/bin/bash\nexec copilot --allow-all-tools --model claude-opus-4.8 --effort xhigh "$@"' > /usr/local/bin/copilot-auto && chmod +x /usr/local/bin/copilot-auto
 
 USER agent
 
