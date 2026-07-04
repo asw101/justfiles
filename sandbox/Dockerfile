@@ -76,7 +76,7 @@ USER agent
 
 # Copilot CLI config: disable co-author attribution and pre-trust the workspace
 RUN mkdir -p /home/agent/.copilot && \
-    echo '{"include_coauthor":false,"trustedFolders":["/home/agent/pwd"]}' > /home/agent/.copilot/config.json
+    echo '{"include_coauthor":false,"trustedFolders":["/home/agent/pwd"],"remoteExport":false}' > /home/agent/.copilot/config.json
 
 # Claude Code config: disable co-author attribution
 RUN mkdir -p /home/agent/.claude && \
