@@ -14,6 +14,8 @@ RUN apt-get update && apt-get install -y \
     sudo \
     tmux \
     jq \
+    libssl-dev \
+    pkg-config \
     python3 \
     python3-pip \
     python3-venv \
@@ -36,11 +38,11 @@ WORKDIR /home/agent
 RUN NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
 # Add brew to PATH
-ENV PATH="/home/agent/.local/bin:/home/agent/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/bin:${PATH}"
+ENV PATH="/home/agent/.cargo/bin:/home/agent/.local/bin:/home/agent/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/bin:${PATH}"
 
 # Set a short prompt, add brew to PATH for login shells (Tailscale SSH),
 # and auto-attach to tmux on SSH login
-RUN echo 'export PATH="/home/agent/.local/bin:/home/agent/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/bin:$PATH"' >> /home/agent/.bashrc && \
+RUN echo 'export PATH="/home/agent/.cargo/bin:/home/agent/.local/bin:/home/agent/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/bin:$PATH"' >> /home/agent/.bashrc && \
     echo "PS1='\\W \$ '" >> /home/agent/.bashrc && \
     echo 'if [ -n "$SSH_CONNECTION" ] && [ -z "$TMUX" ]; then tmux attach -t main 2>/dev/null || tmux new -s main; fi' >> /home/agent/.bashrc && \
     echo '[ -f ~/.bashrc ] && . ~/.bashrc' > /home/agent/.profile
@@ -57,8 +59,12 @@ RUN printf '%s\n' \
     'set -g history-limit 50000' \
     > /home/agent/.tmux.conf
 
-# Install gh, just, and codex
-RUN brew install gh just codex
+# Install development tools and coding agents
+RUN brew install gh just go codex
+
+# Install the stable Rust toolchain with Cargo, Rustfmt, and Clippy
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
+    sh -s -- -y --profile default
 
 # Install Claude Code (latest release, direct binary download)
 RUN curl -fsSL https://claude.ai/install.sh | bash
@@ -70,7 +76,7 @@ RUN curl -fsSL https://gh.io/copilot-install | bash
 USER root
 RUN echo '#!/bin/bash\nexec claude --dangerously-skip-permissions "$@"' > /usr/local/bin/claude-auto && chmod +x /usr/local/bin/claude-auto && \
     echo '#!/bin/bash\nexec codex --full-auto "$@"' > /usr/local/bin/codex-auto && chmod +x /usr/local/bin/codex-auto && \
-    echo '#!/bin/bash\nexec copilot --allow-all-tools --model claude-opus-4.8 --effort xhigh "$@"' > /usr/local/bin/copilot-auto && chmod +x /usr/local/bin/copilot-auto
+    echo '#!/bin/bash\nexec copilot --allow-all-tools --model gpt-5.6-sol --effort high "$@"' > /usr/local/bin/copilot-auto && chmod +x /usr/local/bin/copilot-auto
 
 USER agent
 
