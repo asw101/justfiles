@@ -49,14 +49,23 @@ Run recipes pass Apple Container's `--ssh` option by default. This exposes the
 macOS SSH agent inside the container without copying private keys. Set
 `SANDBOX_SSH=0` to disable forwarding.
 
-Load a key on the host and register its public key as a GitHub signing key:
+Create or load a key on the host and register its public key as a GitHub
+signing key. For 1Password, enable **Settings → Developer → Use the SSH
+agent**, create an Ed25519 SSH key, and add its public key at
+<https://github.com/settings/ssh/new> with **Key type: Signing Key**.
 
 ```bash
 ssh-add --apple-use-keychain ~/.ssh/id_ed25519
 gh ssh-key add ~/.ssh/id_ed25519.pub --type signing --title "Apple Container signing"
 ```
 
-Inside the sandbox, enable SSH commit and tag signing:
+At startup, the sandbox makes Apple Container's forwarded socket accessible to
+the `agent` user, matches the forwarded keys against the current GitHub
+account's signing keys, enables SSH commit and tag signing, and configures
+GitHub CLI credentials for HTTPS pushes. This is automatic when `GH_TOKEN` is
+available.
+
+To configure signing manually or override an ambiguous match:
 
 ```bash
 # With one forwarded key

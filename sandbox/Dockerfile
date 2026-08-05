@@ -77,7 +77,8 @@ RUN curl -fsSL https://gh.io/copilot-install | bash
 # Create wrapper scripts
 USER root
 COPY scripts/git-signing-setup /usr/local/bin/git-signing-setup
-RUN chmod +x /usr/local/bin/git-signing-setup && \
+COPY scripts/sandbox-init /usr/local/bin/sandbox-init
+RUN chmod +x /usr/local/bin/git-signing-setup /usr/local/bin/sandbox-init && \
     echo '#!/bin/bash\nexec claude --dangerously-skip-permissions "$@"' > /usr/local/bin/claude-auto && chmod +x /usr/local/bin/claude-auto && \
     echo '#!/bin/bash\nexec codex --full-auto "$@"' > /usr/local/bin/codex-auto && chmod +x /usr/local/bin/codex-auto && \
     echo '#!/bin/bash\nexec copilot --allow-all-tools --model gpt-5.6-sol --effort high "$@"' > /usr/local/bin/copilot-auto && chmod +x /usr/local/bin/copilot-auto
@@ -111,3 +112,5 @@ RUN printf '%s\n' \
 # Claude Code config: disable co-author attribution
 RUN mkdir -p /home/agent/.claude && \
     echo '{"attribution":{"commit":"","pr":""}}' > /home/agent/.claude/settings.json
+
+ENTRYPOINT ["/usr/local/bin/sandbox-init"]

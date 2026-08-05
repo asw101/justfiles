@@ -9,6 +9,13 @@ if [[ -z "${SSH_AUTH_SOCK:-}" || ! -S "$SSH_AUTH_SOCK" ]]; then
     exit 1
 fi
 
+if [[ ! -r "$SSH_AUTH_SOCK" || ! -w "$SSH_AUTH_SOCK" ]]; then
+    if ! sudo chown "$(id -u):$(id -g)" "$SSH_AUTH_SOCK"; then
+        echo "error: cannot make the forwarded SSH agent accessible" >&2
+        exit 1
+    fi
+fi
+
 if ! key_output="$(ssh-add -L 2>&1)"; then
     echo "error: the forwarded SSH agent has no available keys" >&2
     echo "$key_output" >&2
@@ -25,6 +32,10 @@ describe_keys() {
     done
 }
 
+key_material() {
+    awk '{print $1 " " $2}'
+}
+
 if [[ -n "$selector" ]]; then
     for key in "${keys[@]}"; do
         fingerprint="$(printf '%s\n' "$key" | ssh-keygen -lf - | awk '{print $2}')"
@@ -32,14 +43,31 @@ if [[ -n "$selector" ]]; then
             matches+=("$key")
         fi
     done
+elif [[ "${#keys[@]}" -gt 1 ]] && command -v gh >/dev/null 2>&1; then
+    login="$(gh api user --jq .login 2>/dev/null || true)"
+    if [[ -n "$login" ]]; then
+        mapfile -t github_keys < <(
+            gh api "users/$login/ssh_signing_keys" --paginate --jq '.[].key' 2>/dev/null || true
+        )
+        for key in "${keys[@]}"; do
+            material="$(printf '%s\n' "$key" | key_material)"
+            for github_key in "${github_keys[@]}"; do
+                if [[ "$material" == "$(printf '%s\n' "$github_key" | key_material)" ]]; then
+                    matches+=("$key")
+                    break
+                fi
+            done
+        done
+    fi
 else
     matches=("${keys[@]}")
 fi
 
 if [[ "${#matches[@]}" -ne 1 ]]; then
     if [[ -z "$selector" ]]; then
-        echo "error: expected one forwarded key, found ${#matches[@]}" >&2
-        echo "Pass a key fingerprint or unique comment to select one:" >&2
+        echo "error: expected one GitHub signing key, found ${#matches[@]}" >&2
+        echo "Register exactly one forwarded key as a GitHub signing key," >&2
+        echo "or pass a fingerprint or unique comment to select one:" >&2
     else
         echo "error: selector '$selector' matched ${#matches[@]} forwarded keys" >&2
     fi
