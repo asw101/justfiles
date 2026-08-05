@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+selector="${1:-}"
+
+if [[ -z "${SSH_AUTH_SOCK:-}" || ! -S "$SSH_AUTH_SOCK" ]]; then
+    echo "error: no forwarded SSH agent found" >&2
+    echo "Start the sandbox with Apple Container's --ssh option." >&2
+    exit 1
+fi
+
+if ! key_output="$(ssh-add -L 2>&1)"; then
+    echo "error: the forwarded SSH agent has no available keys" >&2
+    echo "$key_output" >&2
+    exit 1
+fi
+
+mapfile -t keys <<<"$key_output"
+matches=()
+
+describe_keys() {
+    local key
+    for key in "${keys[@]}"; do
+        printf '%s\n' "$key" | ssh-keygen -lf -
+    done
+}
+
+if [[ -n "$selector" ]]; then
+    for key in "${keys[@]}"; do
+        fingerprint="$(printf '%s\n' "$key" | ssh-keygen -lf - | awk '{print $2}')"
+        if [[ "$fingerprint" == "$selector" || "$key" == *"$selector"* ]]; then
+            matches+=("$key")
+        fi
+    done
+else
+    matches=("${keys[@]}")
+fi
+
+if [[ "${#matches[@]}" -ne 1 ]]; then
+    if [[ -z "$selector" ]]; then
+        echo "error: expected one forwarded key, found ${#matches[@]}" >&2
+        echo "Pass a key fingerprint or unique comment to select one:" >&2
+    else
+        echo "error: selector '$selector' matched ${#matches[@]} forwarded keys" >&2
+    fi
+    describe_keys >&2
+    exit 1
+fi
+
+install -d -m 700 "$HOME/.ssh"
+signing_key="$HOME/.ssh/git-signing.pub"
+printf '%s\n' "${matches[0]}" >"$signing_key"
+chmod 600 "$signing_key"
+
+git config --global gpg.format ssh
+git config --global user.signingkey "$signing_key"
+git config --global commit.gpgsign true
+git config --global tag.gpgsign true
+
+echo "Git SSH signing enabled with:"
+ssh-keygen -lf "$signing_key"
+echo "Register this public key as a signing key on GitHub for verified signatures."

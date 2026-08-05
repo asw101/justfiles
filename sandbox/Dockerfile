@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y \
     tmux \
     jq \
     libssl-dev \
+    openssh-client \
     pkg-config \
     python3 \
     python3-pip \
@@ -75,7 +76,9 @@ RUN curl -fsSL https://gh.io/copilot-install | bash
 
 # Create wrapper scripts
 USER root
-RUN echo '#!/bin/bash\nexec claude --dangerously-skip-permissions "$@"' > /usr/local/bin/claude-auto && chmod +x /usr/local/bin/claude-auto && \
+COPY scripts/git-signing-setup /usr/local/bin/git-signing-setup
+RUN chmod +x /usr/local/bin/git-signing-setup && \
+    echo '#!/bin/bash\nexec claude --dangerously-skip-permissions "$@"' > /usr/local/bin/claude-auto && chmod +x /usr/local/bin/claude-auto && \
     echo '#!/bin/bash\nexec codex --full-auto "$@"' > /usr/local/bin/codex-auto && chmod +x /usr/local/bin/codex-auto && \
     echo '#!/bin/bash\nexec copilot --allow-all-tools --model gpt-5.6-sol --effort high "$@"' > /usr/local/bin/copilot-auto && chmod +x /usr/local/bin/copilot-auto
 
