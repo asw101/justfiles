@@ -19,7 +19,10 @@ just run-project ~/myproject
 
 ## What's Inside
 
-The Dockerfile builds an Ubuntu-based image with Homebrew, Rust, Go, `gh`, `just`, Tailscale, and coding agents (Claude Code, GitHub Copilot CLI, OpenAI Codex CLI).
+The Dockerfile builds an Ubuntu-based image with Homebrew, Rust, Go, `gh`,
+`just`, Tailscale, and coding agents (Claude Code, GitHub Copilot CLI, OpenAI
+Codex CLI). Copilot CLI is preconfigured with `rust-analyzer` and `gopls` for
+Rust and Go code intelligence.
 
 ## Recipes
 

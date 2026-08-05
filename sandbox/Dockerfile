@@ -59,8 +59,8 @@ RUN printf '%s\n' \
     'set -g history-limit 50000' \
     > /home/agent/.tmux.conf
 
-# Install development tools and coding agents
-RUN brew install gh just go codex
+# Install development tools, language servers, and coding agents
+RUN brew install gh just go gopls rust-analyzer codex
 
 # Install the stable Rust toolchain with Cargo, Rustfmt, and Clippy
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
@@ -83,6 +83,26 @@ USER agent
 # Copilot CLI config: disable co-author attribution and pre-trust the workspace
 RUN mkdir -p /home/agent/.copilot && \
     echo '{"include_coauthor":false,"trustedFolders":["/home/agent/pwd"],"remoteExport":false}' > /home/agent/.copilot/config.json
+
+# Make Rust and Go code intelligence available to Copilot CLI
+RUN printf '%s\n' \
+    '{' \
+    '  "lspServers": {' \
+    '    "rust-analyzer": {' \
+    '      "command": "/home/linuxbrew/.linuxbrew/bin/rust-analyzer",' \
+    '      "args": [],' \
+    '      "fileExtensions": {".rs": "rust"},' \
+    '      "requestTimeoutMs": 120000' \
+    '    },' \
+    '    "gopls": {' \
+    '      "command": "/home/linuxbrew/.linuxbrew/bin/gopls",' \
+    '      "args": [],' \
+    '      "fileExtensions": {".go": "go"},' \
+    '      "requestTimeoutMs": 120000' \
+    '    }' \
+    '  }' \
+    '}' \
+    > /home/agent/.copilot/lsp-config.json
 
 # Claude Code config: disable co-author attribution
 RUN mkdir -p /home/agent/.claude && \
