@@ -38,11 +38,11 @@ WORKDIR /home/agent
 RUN NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
 # Add brew to PATH
-ENV PATH="/home/agent/.cargo/bin:/home/agent/.local/bin:/home/agent/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/bin:${PATH}"
+ENV PATH="/home/agent/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/bin:/home/agent/.cargo/bin:/home/agent/.local/bin:${PATH}"
 
 # Set a short prompt, add brew to PATH for login shells (Tailscale SSH),
 # and auto-attach to tmux on SSH login
-RUN echo 'export PATH="/home/agent/.cargo/bin:/home/agent/.local/bin:/home/agent/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/bin:$PATH"' >> /home/agent/.bashrc && \
+RUN echo 'export PATH="/home/agent/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/bin:/home/agent/.cargo/bin:/home/agent/.local/bin:$PATH"' >> /home/agent/.bashrc && \
     echo "PS1='\\W \$ '" >> /home/agent/.bashrc && \
     echo 'if [ -n "$SSH_CONNECTION" ] && [ -z "$TMUX" ]; then tmux attach -t main 2>/dev/null || tmux new -s main; fi' >> /home/agent/.bashrc && \
     echo '[ -f ~/.bashrc ] && . ~/.bashrc' > /home/agent/.profile
@@ -64,7 +64,8 @@ RUN brew install gh just go gopls rust-analyzer codex
 
 # Install the stable Rust toolchain with Cargo, Rustfmt, and Clippy
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
-    sh -s -- -y --profile default
+    sh -s -- -y --profile default && \
+    rustup component add rust-src
 
 # Install Claude Code (latest release, direct binary download)
 RUN curl -fsSL https://claude.ai/install.sh | bash
@@ -89,13 +90,13 @@ RUN printf '%s\n' \
     '{' \
     '  "lspServers": {' \
     '    "rust-analyzer": {' \
-    '      "command": "/home/linuxbrew/.linuxbrew/bin/rust-analyzer",' \
+    '      "command": "rust-analyzer",' \
     '      "args": [],' \
     '      "fileExtensions": {".rs": "rust"},' \
     '      "requestTimeoutMs": 120000' \
     '    },' \
     '    "gopls": {' \
-    '      "command": "/home/linuxbrew/.linuxbrew/bin/gopls",' \
+    '      "command": "gopls",' \
     '      "args": [],' \
     '      "fileExtensions": {".go": "go"},' \
     '      "requestTimeoutMs": 120000' \
