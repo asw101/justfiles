@@ -7,7 +7,7 @@ USER root
 
 ENV container=container
 
-# `container machine` execs /sbin/init. The selected sandbox base supplies the
+# `container machine` execs /sbin/init. The selected base image supplies the
 # development toolchain; cmbox adds only what is needed to boot as a VM.
 RUN apt-get update && \
     apt-get install -y \

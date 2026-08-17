@@ -34,7 +34,7 @@ Run `machine` to see all available recipes. Highlights:
 
 | Recipe | Description |
 |---|---|
-| `base-build [args]` | Build the base image from `machine/sandbox/` |
+| `base-build [args]` | Build the base image from `machine/base/` |
 | `build [args]` | Build the machine image from the base image |
 | `build-from-sandbox [args]` | Build the machine image from `sandbox:latest` |
 | `up` | Create and boot the machine |
@@ -50,7 +50,7 @@ Run `machine` to see all available recipes. Highlights:
 
 ## Image Build Paths
 
-The default path builds machine's own base from the `machine/sandbox/` build
+The default path builds machine's own base from the `machine/base/` build
 context:
 
 ```bash
@@ -58,7 +58,7 @@ machine base-build
 machine build
 ```
 
-`machine/sandbox/` is machine's own build context, not a copy of the sibling
+`machine/base/` is machine's own build context, not a copy of the sibling
 [`sandbox`](../sandbox/) command. The two images diverged deliberately: machine
 builds its tooling under a stable `cmbox` user at `/opt/cmbox` because Apple
 creates the machine user at runtime, seeds configuration through `/etc/skel`,

@@ -7,7 +7,7 @@ manager := root / "scripts" / "cmbox"
 image := env("CMBOX_IMAGE", "local/ubuntu-machine:26.04")
 base_image := env("CMBOX_BASE_IMAGE", "cmbox-sandbox:latest")
 sandbox_image := "sandbox:latest"
-base_context := root / "sandbox"
+base_context := root / "base"
 
 # List available recipes (default)
 default:
@@ -38,7 +38,7 @@ _system-ensure:
 
 # --- Image ---
 
-# Build the base image from machine's own build context in sandbox/
+# Build the base image from machine's own build context in base/
 [group('image')]
 base-build *args: _system-ensure
     container build {{args}} \
