@@ -9,7 +9,7 @@ The machine deliberately does not mount the host home directory.
 ```bash
 brew install just
 
-# Build the standalone sandbox base and machine image
+# Build the base and machine images
 machine base-build
 machine build
 
@@ -34,9 +34,8 @@ Run `machine` to see all available recipes. Highlights:
 
 | Recipe | Description |
 |---|---|
-| `base-build [args]` | Build the vendored standalone sandbox base |
-| `sandbox-build [args]` | Build the sibling [`sandbox`](../sandbox/) image |
-| `build [args]` | Build the machine image from the vendored base |
+| `base-build [args]` | Build the base image from `machine/sandbox/` |
+| `build [args]` | Build the machine image from the base image |
 | `build-from-sandbox [args]` | Build the machine image from `sandbox:latest` |
 | `up` | Create and boot the machine |
 | `run [command]` | Open a shell or run a command inside the machine |
@@ -51,23 +50,29 @@ Run `machine` to see all available recipes. Highlights:
 
 ## Image Build Paths
 
-The standalone path uses the vendored `machine/sandbox/` build context:
+The default path builds machine's own base from the `machine/sandbox/` build
+context:
 
 ```bash
 machine base-build
 machine build
 ```
 
-The in-repository path builds the sibling [`sandbox`](../sandbox/) image first:
+`machine/sandbox/` is machine's own build context, not a copy of the sibling
+[`sandbox`](../sandbox/) command. The two images diverged deliberately: machine
+builds its tooling under a stable `cmbox` user at `/opt/cmbox` because Apple
+creates the machine user at runtime, seeds configuration through `/etc/skel`,
+and adds an entrypoint. There is no baseline to reconcile against.
+
+Alternatively, build on top of `sandbox:latest`, which the sibling `sandbox`
+command produces:
 
 ```bash
-machine sandbox-build
+sandbox image-build
 machine build-from-sandbox
 ```
 
-The steps are intentionally separate so the base image can be reused. Use
-`machine sandbox-diff` to inspect changes between the vendored baseline and the
-sibling sandbox, then `machine sandbox-merge` to refresh the baseline.
+The steps are intentionally separate so the base image can be reused.
 
 ## Running Commands
 

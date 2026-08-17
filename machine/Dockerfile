@@ -1,4 +1,4 @@
-# Machine-specific layer over either the vendored sandbox build or the sibling
+# Machine-specific layer over either machine's own base image or the sibling
 # sandbox image.
 ARG BASE_IMAGE=cmbox-sandbox:latest
 FROM ${BASE_IMAGE}

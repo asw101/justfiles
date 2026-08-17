@@ -7,12 +7,7 @@ manager := root / "scripts" / "cmbox"
 image := env("CMBOX_IMAGE", "local/ubuntu-machine:26.04")
 base_image := env("CMBOX_BASE_IMAGE", "cmbox-sandbox:latest")
 sandbox_image := "sandbox:latest"
-sandbox_copy := root / "sandbox"
-sandbox_baseline := sandbox_copy / "Dockerfile"
-sandbox_root := justfile_directory() / ".." / "sandbox"
-sandbox_dockerfile := sandbox_root / "Dockerfile"
-sandbox_justfile := sandbox_root / "Justfile"
-sandbox_scripts := sandbox_root / "scripts"
+base_context := root / "sandbox"
 
 # List available recipes (default)
 default:
@@ -43,32 +38,21 @@ _system-ensure:
 
 # --- Image ---
 
-# Build the vendored sandbox base for a fully standalone two-stage build
+# Build the base image from machine's own build context in sandbox/
 [group('image')]
 base-build *args: _system-ensure
     container build {{args}} \
       --tag "{{base_image}}" \
-      --file "{{sandbox_copy / "Dockerfile"}}" \
-      "{{sandbox_copy}}"
+      --file "{{base_context / "Dockerfile"}}" \
+      "{{base_context}}"
 
-# Build the sibling sandbox image as an independent first stage
-[group('image')]
-sandbox-build *args: _system-ensure
-    #!/usr/bin/env bash
-    set -euo pipefail
-    [[ -f "{{sandbox_justfile}}" ]] || {
-        echo "Sandbox Justfile not found: {{sandbox_justfile}}" >&2
-        exit 1
-    }
-    exec just --justfile "{{sandbox_justfile}}" image-build "$@"
-
-# Build cmbox from the vendored base; run base-build first
+# Build cmbox from the base image; run base-build first
 [group('image')]
 build *args: _system-ensure
     #!/usr/bin/env bash
     exec env CMBOX_BASE_IMAGE="{{base_image}}" "{{manager}}" build "$@"
 
-# Build cmbox from sandbox:latest; run sandbox-build first and use --force when switching bases
+# Build cmbox from sandbox:latest; build that image with the sibling `sandbox` command first, and use --force when switching bases
 [group('image')]
 build-from-sandbox *args: _system-ensure
     #!/usr/bin/env bash
@@ -84,56 +68,10 @@ image-list: _system-ensure
 image-clean: _system-ensure
     container image delete "{{image}}"
 
-# Delete the vendored standalone base image
+# Delete the local base image
 [group('image')]
 base-clean: _system-ensure
     container image delete "{{base_image}}"
-
-# --- Upstream Sandbox ---
-
-# Show changes in the sibling sandbox build context since the last merge
-[group('upstream')]
-sandbox-diff:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    [[ -f "{{sandbox_dockerfile}}" ]] || {
-        echo "Sandbox Dockerfile not found: {{sandbox_dockerfile}}" >&2
-        exit 1
-    }
-    status=0
-    git diff --no-index -- "{{sandbox_baseline}}" "{{sandbox_dockerfile}}" || status=$?
-    if [[ "$status" -gt 1 ]]; then
-        exit "$status"
-    fi
-    if [[ -d "{{sandbox_scripts}}" ]]; then
-        git diff --no-index -- "{{sandbox_copy / "scripts"}}" "{{sandbox_scripts}}" || status=$?
-        if [[ "$status" -gt 1 ]]; then
-            exit "$status"
-        fi
-    else
-        echo "Sibling sandbox has no scripts directory; vendored scripts are unchanged."
-    fi
-
-# Refresh the vendored sandbox build context from the sibling directory
-[group('upstream')]
-sandbox-merge:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    [[ -f "{{sandbox_dockerfile}}" ]] || {
-        echo "Sandbox Dockerfile not found: {{sandbox_dockerfile}}" >&2
-        exit 1
-    }
-    install -m 644 "{{sandbox_dockerfile}}" "{{sandbox_baseline}}"
-    if [[ -d "{{sandbox_scripts}}" ]]; then
-        install -d -m 755 "{{sandbox_copy / "scripts"}}"
-        install -m 755 \
-          "{{sandbox_scripts / "git-signing-setup"}}" \
-          "{{sandbox_copy / "scripts" / "git-signing-setup"}}"
-        install -m 644 \
-          "{{sandbox_scripts / "sandbox-init"}}" \
-          "{{sandbox_copy / "scripts" / "sandbox-init"}}"
-    fi
-    echo "Refreshed vendored sandbox build context."
 
 # --- Machine ---
 
