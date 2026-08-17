@@ -3,4 +3,5 @@
 A collection of [just](https://github.com/casey/just) command runners. Each subdirectory is a self-contained Justfile. Run `just alias` to get shell aliases for all of them.
 
 - **[sandbox](sandbox/)** — Apple Container-based dev sandboxes
+- **[machine](machine/)** — Isolated Ubuntu development machines
 - **[secret](secret/)** — Password/secret management (get/set interface)

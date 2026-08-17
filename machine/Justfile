@@ -1,0 +1,196 @@
+# Build and manage cmbox with Apple's `container` CLI
+
+set positional-arguments := true
+
+root := justfile_directory()
+manager := root / "scripts" / "cmbox"
+image := env("CMBOX_IMAGE", "local/ubuntu-machine:26.04")
+base_image := env("CMBOX_BASE_IMAGE", "cmbox-sandbox:latest")
+sandbox_image := "sandbox:latest"
+sandbox_copy := root / "sandbox"
+sandbox_baseline := sandbox_copy / "Dockerfile"
+sandbox_root := justfile_directory() / ".." / "sandbox"
+sandbox_dockerfile := sandbox_root / "Dockerfile"
+sandbox_justfile := sandbox_root / "Justfile"
+sandbox_scripts := sandbox_root / "scripts"
+
+# List available recipes (default)
+default:
+    @just --list
+
+# --- System ---
+
+# Start the Apple container system service
+[group('system')]
+system-start:
+    container system start
+
+# Stop the Apple container system service
+[group('system')]
+system-stop:
+    container system stop
+
+# (private) Ensure the Apple container system service is running; start it if not
+[private]
+_system-ensure:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    status="$(container system status 2>/dev/null | awk '$1=="status"{print $2}')"
+    if [[ "$status" != "running" ]]; then
+        echo "Apple container system not running; starting..."
+        container system start
+    fi
+
+# --- Image ---
+
+# Build the vendored sandbox base for a fully standalone two-stage build
+[group('image')]
+base-build *args: _system-ensure
+    container build {{args}} \
+      --tag "{{base_image}}" \
+      --file "{{sandbox_copy / "Dockerfile"}}" \
+      "{{sandbox_copy}}"
+
+# Build the sibling sandbox image as an independent first stage
+[group('image')]
+sandbox-build *args: _system-ensure
+    #!/usr/bin/env bash
+    set -euo pipefail
+    [[ -f "{{sandbox_justfile}}" ]] || {
+        echo "Sandbox Justfile not found: {{sandbox_justfile}}" >&2
+        exit 1
+    }
+    exec just --justfile "{{sandbox_justfile}}" image-build "$@"
+
+# Build cmbox from the vendored base; run base-build first
+[group('image')]
+build *args: _system-ensure
+    #!/usr/bin/env bash
+    exec env CMBOX_BASE_IMAGE="{{base_image}}" "{{manager}}" build "$@"
+
+# Build cmbox from sandbox:latest; run sandbox-build first and use --force when switching bases
+[group('image')]
+build-from-sandbox *args: _system-ensure
+    #!/usr/bin/env bash
+    exec env CMBOX_BASE_IMAGE="{{sandbox_image}}" "{{manager}}" build "$@"
+
+# List local images
+[group('image')]
+image-list: _system-ensure
+    container image list
+
+# Delete the local cmbox image
+[group('image')]
+image-clean: _system-ensure
+    container image delete "{{image}}"
+
+# Delete the vendored standalone base image
+[group('image')]
+base-clean: _system-ensure
+    container image delete "{{base_image}}"
+
+# --- Upstream Sandbox ---
+
+# Show changes in the sibling sandbox build context since the last merge
+[group('upstream')]
+sandbox-diff:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    [[ -f "{{sandbox_dockerfile}}" ]] || {
+        echo "Sandbox Dockerfile not found: {{sandbox_dockerfile}}" >&2
+        exit 1
+    }
+    status=0
+    git diff --no-index -- "{{sandbox_baseline}}" "{{sandbox_dockerfile}}" || status=$?
+    if [[ "$status" -gt 1 ]]; then
+        exit "$status"
+    fi
+    if [[ -d "{{sandbox_scripts}}" ]]; then
+        git diff --no-index -- "{{sandbox_copy / "scripts"}}" "{{sandbox_scripts}}" || status=$?
+        if [[ "$status" -gt 1 ]]; then
+            exit "$status"
+        fi
+    else
+        echo "Sibling sandbox has no scripts directory; vendored scripts are unchanged."
+    fi
+
+# Refresh the vendored sandbox build context from the sibling directory
+[group('upstream')]
+sandbox-merge:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    [[ -f "{{sandbox_dockerfile}}" ]] || {
+        echo "Sandbox Dockerfile not found: {{sandbox_dockerfile}}" >&2
+        exit 1
+    }
+    install -m 644 "{{sandbox_dockerfile}}" "{{sandbox_baseline}}"
+    if [[ -d "{{sandbox_scripts}}" ]]; then
+        install -d -m 755 "{{sandbox_copy / "scripts"}}"
+        install -m 755 \
+          "{{sandbox_scripts / "git-signing-setup"}}" \
+          "{{sandbox_copy / "scripts" / "git-signing-setup"}}"
+        install -m 644 \
+          "{{sandbox_scripts / "sandbox-init"}}" \
+          "{{sandbox_copy / "scripts" / "sandbox-init"}}"
+    fi
+    echo "Refreshed vendored sandbox build context."
+
+# --- Machine ---
+
+# Create and boot the machine; the image must already be built
+[group('machine')]
+up: _system-ensure
+    exec "{{manager}}" up
+
+# Run a command in the machine; omit CMD for an interactive shell
+[group('machine')]
+run *args: _system-ensure
+    #!/usr/bin/env bash
+    exec "{{manager}}" run "$@"
+
+# Run a shell script in the machine, preserving pipelines and shell syntax
+[group('machine')]
+sh script: _system-ensure
+    #!/usr/bin/env bash
+    exec "{{manager}}" sh "$1"
+
+# Start or restart Claude Remote Control
+[group('machine')]
+rc dir="": _system-ensure
+    #!/usr/bin/env bash
+    if [[ -n "${1:-}" ]]; then
+        exec "{{manager}}" rc "$1"
+    fi
+    exec "{{manager}}" rc
+
+# Stop Claude Remote Control
+[group('machine')]
+rc-stop: _system-ensure
+    exec "{{manager}}" rc-stop
+
+# Copy a file; prefix the guest-side path with machine:
+[group('machine')]
+cp src dst: _system-ensure
+    #!/usr/bin/env bash
+    exec "{{manager}}" cp "$1" "$2"
+
+# Show machine state
+[group('machine')]
+status: _system-ensure
+    exec "{{manager}}" status
+
+# Stop the machine
+[group('machine')]
+stop: _system-ensure
+    exec "{{manager}}" stop
+
+# Delete the machine and its disk; requires an explicit --yes
+[group('machine')]
+delete *args: _system-ensure
+    #!/usr/bin/env bash
+    exec "{{manager}}" delete "$@"
+
+# Fetch machine boot logs
+[group('machine')]
+logs: _system-ensure
+    exec "{{manager}}" logs

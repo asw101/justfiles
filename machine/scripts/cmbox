@@ -1,0 +1,236 @@
+#!/usr/bin/env bash
+#
+# cmbox -- manage the `cmbox` Ubuntu container machine under Apple's
+# `container` CLI, and run commands inside it.
+#
+# The machine is created with --home-mount none. `container machine` mounts
+# the host home directory read-write by default; this deliberately does not,
+# so the host home directory is not visible inside the VM.
+
+set -euo pipefail
+
+MACHINE="${CMBOX_MACHINE:-cmbox}"
+IMAGE="${CMBOX_IMAGE:-local/ubuntu-machine:26.04}"
+CPUS="${CMBOX_CPUS:-4}"
+MEMORY="${CMBOX_MEMORY:-8G}"
+HOME_MOUNT="${CMBOX_HOME_MOUNT:-none}"
+BASE_IMAGE="${CMBOX_BASE_IMAGE:-cmbox-sandbox:latest}"
+
+BUILD_CONTEXT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+die() { printf 'cmbox: %s\n' "$*" >&2; exit 1; }
+note() { printf 'cmbox: %s\n' "$*" >&2; }
+
+require_cli() {
+    command -v container >/dev/null 2>&1 ||
+        die "the 'container' CLI is not installed (see https://github.com/apple/container)"
+}
+
+machine_exists() { container machine inspect "$MACHINE" >/dev/null 2>&1; }
+image_exists() { container image inspect "$IMAGE" >/dev/null 2>&1; }
+base_image_exists() { container image inspect "$BASE_IMAGE" >/dev/null 2>&1; }
+
+machine_status() {
+    container machine inspect "$MACHINE" 2>/dev/null |
+        sed -n 's/.*"status" : "\([a-z]*\)".*/\1/p' | head -1
+}
+
+# Quote arguments into a single POSIX shell command line.
+shell_quote() {
+    local out="" a esc q="'"
+    for a in "$@"; do
+        # Wrap in single quotes, rewriting any embedded ' as '\''.
+        esc=${a//$q/$q\\$q$q}
+        out+="$q$esc$q "
+    done
+    printf '%s' "${out% }"
+}
+
+# Execute a shell command line inside the machine. Apple container reparses the
+# command, so encode it first to preserve quoting and shell syntax.
+run_line() {
+    local payload
+    payload="$(printf '%s' "$1" | base64 | tr -d '\n')"
+    container machine run -n "$MACHINE" -- sh -c "'echo $payload | base64 -d | sh'"
+}
+
+cmd_build() {
+    local force=""
+    case "$#" in
+        0) ;;
+        1) [[ "$1" == "--force" ]] || die "usage: cmbox build [--force]"; force=1 ;;
+        *) die "usage: cmbox build [--force]" ;;
+    esac
+    if image_exists && [[ -z "$force" ]]; then
+        note "image $IMAGE already present; use 'build --force' to rebuild"
+        return 0
+    fi
+    base_image_exists ||
+        die "base image $BASE_IMAGE is missing; build the selected base first"
+    [[ -f "$BUILD_CONTEXT/Dockerfile" ]] || die "no Dockerfile in $BUILD_CONTEXT"
+    container build \
+        --build-arg "BASE_IMAGE=$BASE_IMAGE" \
+        -t "$IMAGE" \
+        "$BUILD_CONTEXT"
+}
+
+cmd_create() {
+    if machine_exists; then
+        note "machine '$MACHINE' already exists"
+        return 0
+    fi
+    image_exists ||
+        die "image $IMAGE is missing; build the base and cmbox image before running 'up'"
+    container machine create "$IMAGE" \
+        --name "$MACHINE" \
+        --cpus "$CPUS" \
+        --memory "$MEMORY" \
+        --home-mount "$HOME_MOUNT"
+}
+
+cmd_up() {
+    cmd_create
+    if [[ "$(machine_status)" != "running" ]]; then
+        note "booting '$MACHINE'"
+        run_line true >/dev/null
+    fi
+    cmd_status
+}
+
+cmd_run() {
+    machine_exists || cmd_create
+    if [[ $# -eq 0 ]]; then
+        container machine run -n "$MACHINE"
+    else
+        run_line "$(shell_quote "$@")"
+    fi
+}
+
+cmd_sh() {
+    [[ $# -ge 1 ]] || die "usage: cmbox sh 'SCRIPT'"
+    machine_exists || cmd_create
+    run_line "$*"
+}
+
+cmd_rc() {
+    local dir="${1:-tmp/rc}" qdir
+    machine_exists || cmd_create
+    qdir=$(shell_quote "$dir")
+    run_line "
+d=$qdir
+case \"\$d\" in /*) ;; *) d=\"\$HOME/\$d\" ;; esac
+mkdir -p \"\$d\" && cd \"\$d\" || exit 1
+pkill -f 'claude rc' >/dev/null 2>&1 && echo 'stopped previous claude rc'
+claude_bin=\$(command -v claude) || {
+    echo 'claude is not installed or not on PATH' >&2
+    exit 1
+}
+nohup \"\$claude_bin\" rc >\"\$d/rc.log\" 2>&1 &
+sleep 6
+if pgrep -f 'claude rc' >/dev/null 2>&1; then
+    echo \"claude rc running in \$d (log: \$d/rc.log)\"
+    sed -e 's/\x1b\[[0-9;?]*[A-Za-z]//g' \"\$d/rc.log\" | grep -o 'https://claude.ai/code?[^ ]*' | head -1
+else
+    echo 'claude rc failed to start; last log lines:' >&2
+    tail -5 \"\$d/rc.log\" >&2
+    exit 1
+fi
+"
+}
+
+cmd_rc_stop() {
+    machine_exists || die "machine '$MACHINE' does not exist"
+    run_line "pkill -f 'claude rc' >/dev/null 2>&1 && echo 'stopped claude rc' || echo 'claude rc was not running'"
+}
+
+cmd_cp() {
+    [[ $# -eq 2 ]] || die "usage: cmbox cp <src> <dst>   (prefix guest paths with 'machine:')"
+    machine_exists || die "machine '$MACHINE' does not exist"
+    local cid
+    cid=$(container machine inspect "$MACHINE" 2>/dev/null |
+        sed -n 's/.*"containerId" : "\([^"]*\)".*/\1/p' | head -1)
+    [[ -n "$cid" ]] || die "could not resolve the container id for '$MACHINE'"
+    container cp "${1/#machine:/$cid:}" "${2/#machine:/$cid:}"
+}
+
+cmd_status() {
+    if ! machine_exists; then
+        note "machine '$MACHINE' does not exist; create it with 'cmbox up'"
+        return 1
+    fi
+    container machine ls
+}
+
+cmd_stop() {
+    machine_exists || die "machine '$MACHINE' does not exist"
+    container machine stop "$MACHINE"
+}
+
+cmd_delete() {
+    machine_exists || { note "machine '$MACHINE' does not exist"; return 0; }
+    [[ "${1:-}" == "--yes" ]] ||
+        die "refusing to delete '$MACHINE' without --yes (this destroys its disk)"
+    [[ "$(machine_status)" == "running" ]] && container machine stop "$MACHINE"
+    container machine delete "$MACHINE"
+}
+
+cmd_logs() {
+    machine_exists || die "machine '$MACHINE' does not exist"
+    container machine logs "$MACHINE"
+}
+
+usage() {
+    cat <<EOF
+cmbox -- an Ubuntu container machine with no host home directory mounted.
+
+Usage: cmbox <command> [args]
+
+  up                 Create and boot the machine (image must already be built)
+  run [CMD ...]      Run CMD inside the machine; no CMD gives an interactive shell
+  sh 'SCRIPT'        Run a raw shell script inside the machine (pipelines, &&, \$vars)
+  rc [DIR]           Start/restart \`claude rc\` detached in DIR (default: ~/tmp/rc)
+  rc-stop            Stop a running \`claude rc\`
+  cp SRC DST         Copy files host <-> machine; prefix guest paths with 'machine:'
+  status             Show the machine's state
+  stop               Stop the machine
+  delete --yes       Delete the machine and its disk
+  build [--force]    Build the machine image
+  logs               Fetch the machine's boot logs
+
+Configuration (environment variables):
+  CMBOX_MACHINE      Machine name           (default: cmbox)
+  CMBOX_IMAGE        Image reference        (default: local/ubuntu-machine:26.04)
+  CMBOX_BASE_IMAGE   Build base image       (default: cmbox-sandbox:latest)
+  CMBOX_CPUS         vCPUs at create time   (default: 4)
+  CMBOX_MEMORY       Memory at create time  (default: 8G)
+  CMBOX_HOME_MOUNT   Home mount: none|ro|rw (default: none)
+
+CPUs and memory apply at create time. To change them afterwards:
+  container machine set -n $MACHINE cpus=8 memory=16G
+EOF
+}
+
+main() {
+    require_cli
+    local cmd="${1:-help}"
+    [[ $# -gt 0 ]] && shift || true
+    case "$cmd" in
+        up) cmd_up "$@" ;;
+        run) cmd_run "$@" ;;
+        sh) cmd_sh "$@" ;;
+        rc) cmd_rc "$@" ;;
+        rc-stop) cmd_rc_stop "$@" ;;
+        cp | copy) cmd_cp "$@" ;;
+        status) cmd_status "$@" ;;
+        stop) cmd_stop "$@" ;;
+        delete | rm) cmd_delete "$@" ;;
+        build) cmd_build "$@" ;;
+        logs) cmd_logs "$@" ;;
+        help | -h | --help) usage ;;
+        *) die "unknown command '$cmd' (try 'cmbox help')" ;;
+    esac
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+fi
