@@ -73,7 +73,7 @@ ENV PATH="/home/linuxbrew/.linuxbrew/bin:/opt/cmbox/.cargo/bin:/opt/cmbox/.local
 
 # Set a short prompt, add brew to PATH for login shells (Tailscale SSH),
 # and auto-attach to tmux on SSH login
-RUN echo 'export PATH="/home/linuxbrew/.linuxbrew/bin:/opt/cmbox/.cargo/bin:/opt/cmbox/.local/bin:$PATH"' >> /opt/cmbox/.bashrc && \
+RUN echo 'export PATH="$HOME/.local/bin:/home/linuxbrew/.linuxbrew/bin:/opt/cmbox/.cargo/bin:/opt/cmbox/.local/bin:$PATH"' >> /opt/cmbox/.bashrc && \
     echo "PS1='\\W \$ '" >> /opt/cmbox/.bashrc && \
     echo 'if [ -n "$SSH_CONNECTION" ] && [ -z "$TMUX" ]; then tmux attach -t main 2>/dev/null || tmux new -s main; fi' >> /opt/cmbox/.bashrc && \
     echo '[ -f ~/.bashrc ] && . ~/.bashrc' > /opt/cmbox/.profile
@@ -117,9 +117,15 @@ RUN chmod +x /usr/local/bin/git-signing-setup /usr/local/bin/sandbox-init && \
       /opt/cmbox/.cargo/bin \
       /opt/cmbox/.local/bin; do \
       for tool in "$dir"/*; do \
+        [ "${tool##*/}" = brew ] && continue; \
         ln -sf "$tool" "/usr/local/bin/${tool##*/}"; \
       done; \
     done && \
+    printf '%s\n' \
+      '#!/bin/sh' \
+      'exec /home/linuxbrew/.linuxbrew/bin/brew "$@"' \
+      > /usr/local/bin/brew && \
+    chmod 755 /usr/local/bin/brew && \
     for tool in /opt/cmbox/.cargo/bin/*; do \
       name="${tool##*/}"; \
       rm -f "/usr/local/bin/$name"; \
@@ -171,6 +177,7 @@ RUN install -d /etc/skel/.copilot /etc/skel/.claude && \
     cp /opt/cmbox/.copilot/config.json /opt/cmbox/.copilot/lsp-config.json \
       /etc/skel/.copilot/ && \
     cp /opt/cmbox/.claude/settings.json /etc/skel/.claude/ && \
+    cp /opt/cmbox/.bashrc /opt/cmbox/.profile /etc/skel/ && \
     cp /opt/cmbox/.tmux.conf /etc/skel/.tmux.conf && \
     chmod -R a+rwX /opt/cmbox /home/linuxbrew
 
