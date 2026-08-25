@@ -14,6 +14,7 @@ IMAGE="${CMBOX_IMAGE:-local/ubuntu-machine:26.04}"
 CPUS="${CMBOX_CPUS:-4}"
 MEMORY="${CMBOX_MEMORY:-8G}"
 HOME_MOUNT="${CMBOX_HOME_MOUNT:-none}"
+DISK="${CMBOX_DISK:-}"
 BASE_IMAGE="${CMBOX_BASE_IMAGE:-cmbox-sandbox:latest}"
 
 BUILD_CONTEXT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -24,6 +25,23 @@ note() { printf 'cmbox: %s\n' "$*" >&2; }
 require_cli() {
     command -v container >/dev/null 2>&1 ||
         die "the 'container' CLI is not installed (see https://github.com/apple/container)"
+}
+
+# Resolve the flag `container machine create` uses for disk size.
+#
+# The CLI has not always exposed one, and the spelling is not stable across
+# versions, so discover it from --help rather than hardcoding a guess that
+# silently breaks machine creation. Most specific candidate first, since a
+# match on "--disk" would also match "--disk-size".
+disk_flag() {
+    local help candidate
+    help="$(container machine create --help 2>&1 || true)"
+    for candidate in --disk-size --disk --storage-size --storage; do
+        case "$help" in
+            *"$candidate"*) printf '%s' "$candidate"; return 0 ;;
+        esac
+    done
+    return 1
 }
 
 machine_exists() { container machine inspect "$MACHINE" >/dev/null 2>&1; }
@@ -81,11 +99,19 @@ cmd_create() {
     fi
     image_exists ||
         die "image $IMAGE is missing; build the base and cmbox image before running 'up'"
-    container machine create "$IMAGE" \
-        --name "$MACHINE" \
-        --cpus "$CPUS" \
-        --memory "$MEMORY" \
+    local -a create_args=(
+        --name "$MACHINE"
+        --cpus "$CPUS"
+        --memory "$MEMORY"
         --home-mount "$HOME_MOUNT"
+    )
+    if [ -n "$DISK" ]; then
+        local flag
+        flag="$(disk_flag)" ||
+            die "CMBOX_DISK is set but this 'container' CLI exposes no disk-size flag on 'machine create'; check 'container machine create --help'"
+        create_args+=("$flag" "$DISK")
+    fi
+    container machine create "$IMAGE" "${create_args[@]}"
 }
 
 cmd_up() {
@@ -203,9 +229,12 @@ Configuration (environment variables):
   CMBOX_BASE_IMAGE   Build base image       (default: cmbox-sandbox:latest)
   CMBOX_CPUS         vCPUs at create time   (default: 4)
   CMBOX_MEMORY       Memory at create time  (default: 8G)
+  CMBOX_DISK         Disk at create time    (default: unset, CLI default)
   CMBOX_HOME_MOUNT   Home mount: none|ro|rw (default: none)
 
-CPUs and memory apply at create time. To change them afterwards:
+CPUs, memory and disk apply at create time. CPUs and memory can be changed
+afterwards; the disk cannot, so a machine that has outgrown its disk has to be
+recreated.
   container machine set -n $MACHINE cpus=8 memory=16G
 EOF
 }

@@ -111,6 +111,7 @@ the machine before starting Remote Control.
 | `CMBOX_BASE_IMAGE` | `cmbox-sandbox:latest` | Standalone base image |
 | `CMBOX_CPUS` | `4` | vCPUs assigned at creation |
 | `CMBOX_MEMORY` | `8G` | Memory assigned at creation |
+| `CMBOX_DISK` | unset | Disk size assigned at creation, for example `120G`. Left unset, the `container` CLI default applies. Cannot be changed after creation |
 | `CMBOX_HOME_MOUNT` | `none` | Host home mount mode: `none`, `ro`, or `rw` |
 
 CPU and memory settings apply when the machine is created. To resize an
