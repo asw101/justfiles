@@ -29,10 +29,12 @@ require_cli() {
 
 # Resolve the flag `container machine create` uses for disk size.
 #
-# The CLI has not always exposed one, and the spelling is not stable across
-# versions, so discover it from --help rather than hardcoding a guess that
-# silently breaks machine creation. Most specific candidate first, since a
-# match on "--disk" would also match "--disk-size".
+# As of container CLI 1.3.0 there is none. `machine create` takes --cpus,
+# --memory, --home-mount, --virtualization and --kernel, and `machine set` has
+# no disk setting either, so the disk can be neither capped at create time nor
+# resized afterwards. Probe for one anyway, so CMBOX_DISK starts working the day
+# it is added without hardcoding a guess at its spelling. Most specific
+# candidate first, since a match on "--disk" would also match "--disk-size".
 disk_flag() {
     local help candidate
     help="$(container machine create --help 2>&1 || true)"
