@@ -1,0 +1,192 @@
+# Report and prune stale branches, worktrees and checkout directories
+
+set positional-arguments := true
+
+workspace := env("TIDY_WORKSPACE", env("HOME") / "tmp")
+
+# List available recipes (default)
+default:
+    @just --list
+
+# --- Report ---
+
+# Report everything for one repo: branches, worktrees, then the workspace
+[group('report')]
+report repo base="origin/main" remote="origin":
+    @just --justfile "{{justfile()}}" branches "{{repo}}" "{{base}}" "{{remote}}"
+    @echo
+    @just --justfile "{{justfile()}}" worktrees "{{repo}}" "{{base}}"
+    @echo
+    @just --justfile "{{justfile()}}" dirs
+
+# --- Branches ---
+
+# Report branches on <remote> already contained in <base>, so deleting them loses nothing
+[group('branches')]
+branches repo base="origin/main" remote="origin":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{repo}}"
+    base="{{base}}"
+    git fetch --prune --quiet "{{remote}}" || true
+    git fetch --quiet "${base%%/*}" "${base#*/}" 2>/dev/null || true
+    base_branch="${base#*/}"
+    # Branches checked out in a worktree must never be proposed for deletion.
+    checked_out="$(git worktree list --porcelain | awk '/^branch /{sub("refs/heads/","",$2); print $2}')"
+    merged=(); open=()
+    while read -r ref; do
+        # Iterate full refnames: refs/remotes/<remote>/HEAD abbreviates to just
+        # "<remote>", which would otherwise look like a branch of that name.
+        b="${ref#refs/remotes/{{remote}}/}"
+        [ "$b" = "HEAD" ] && continue
+        [ "$b" = "$base_branch" ] && continue
+        if grep -qxF "$b" <<<"$checked_out"; then continue; fi
+        if git merge-base --is-ancestor "$ref" "{{base}}" 2>/dev/null; then
+            merged+=("$b")
+        else
+            open+=("$b")
+        fi
+    done < <(git for-each-ref --format='%(refname)' "refs/remotes/{{remote}}")
+    echo "branches on {{remote}}, against {{base}}   (repo: {{repo}})"
+    echo "  contained in {{base}}, safe to delete: ${#merged[@]}"
+    for b in "${merged[@]:-}"; do [ -n "$b" ] && echo "    $b"; done
+    echo "  not contained, keep: ${#open[@]}"
+    for b in "${open[@]:-}"; do [ -n "$b" ] && echo "    $b"; done
+    if [ "${#merged[@]}" -gt 0 ]; then
+        echo
+        echo "  to delete them: just --justfile {{justfile()}} branches-prune {{repo}} {{base}} {{remote}} yes"
+    fi
+
+# Delete the branches `branches` reports as contained in <base>. Pass confirm=yes to act.
+[group('branches')]
+branches-prune repo base="origin/main" remote="origin" confirm="no":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{repo}}"
+    base="{{base}}"
+    base_branch="${base#*/}"
+    checked_out="$(git worktree list --porcelain | awk '/^branch /{sub("refs/heads/","",$2); print $2}')"
+    to_delete=()
+    while read -r ref; do
+        # Iterate full refnames: refs/remotes/<remote>/HEAD abbreviates to just
+        # "<remote>", which would otherwise look like a branch of that name.
+        b="${ref#refs/remotes/{{remote}}/}"
+        [ "$b" = "HEAD" ] && continue
+        [ "$b" = "$base_branch" ] && continue
+        if grep -qxF "$b" <<<"$checked_out"; then continue; fi
+        git merge-base --is-ancestor "$ref" "{{base}}" 2>/dev/null && to_delete+=("$b")
+    done < <(git for-each-ref --format='%(refname)' "refs/remotes/{{remote}}")
+    if [ "${#to_delete[@]}" -eq 0 ]; then echo "nothing to delete"; exit 0; fi
+    if [ "{{confirm}}" != "yes" ]; then
+        echo "would delete ${#to_delete[@]} branches on {{remote}}:"
+        printf '    %s\n' "${to_delete[@]}"
+        echo
+        echo "re-run with confirm=yes as the last argument to actually delete"
+        exit 0
+    fi
+    for b in "${to_delete[@]}"; do
+        echo "deleting {{remote}}/$b"
+        git push "{{remote}}" --delete "$b"
+    done
+
+# --- Worktrees ---
+
+# Report worktrees, flagging which are clean and on a branch already contained in <base>
+[group('worktrees')]
+worktrees repo base="origin/main":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{repo}}"
+    main_wt="$(git rev-parse --path-format=absolute --git-common-dir)"; main_wt="$(dirname "$main_wt")"
+    echo "worktrees of {{repo}}, against {{base}}"
+    git worktree list --porcelain | awk '/^worktree /{print $2}' | while read -r wt; do
+        [ "$wt" = "$main_wt" ] && { echo "    $wt  (primary, skipped)"; continue; }
+        br="$(git -C "$wt" branch --show-current 2>/dev/null || true)"
+        dirty="$(git -C "$wt" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
+        state="keep"
+        if [ "$dirty" != "0" ]; then
+            state="KEEP: $dirty uncommitted change(s)"
+        elif [ -z "$br" ]; then
+            state="detached HEAD, judge by hand"
+        elif git merge-base --is-ancestor "$br" "{{base}}" 2>/dev/null; then
+            state="REMOVABLE: '$br' is contained in {{base}}"
+        else
+            state="keep: '$br' has unmerged work"
+        fi
+        printf '    %-46s %s\n' "$wt" "$state"
+    done
+    echo
+    echo "  remove one with: git -C {{repo}} worktree remove <path>"
+
+# Remove worktrees that are clean and on a branch contained in <base>. Pass confirm=yes to act.
+[group('worktrees')]
+worktrees-prune repo base="origin/main" confirm="no":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{repo}}"
+    main_wt="$(git rev-parse --path-format=absolute --git-common-dir)"; main_wt="$(dirname "$main_wt")"
+    acted=0
+    while read -r wt; do
+        [ "$wt" = "$main_wt" ] && continue
+        br="$(git -C "$wt" branch --show-current 2>/dev/null || true)"
+        [ -z "$br" ] && continue
+        [ "$(git -C "$wt" status --porcelain | wc -l | tr -d ' ')" != "0" ] && continue
+        git merge-base --is-ancestor "$br" "{{base}}" 2>/dev/null || continue
+        acted=1
+        if [ "{{confirm}}" != "yes" ]; then
+            echo "would remove $wt  (branch '$br', clean, contained in {{base}})"
+        else
+            echo "removing $wt"
+            git worktree remove "$wt"
+        fi
+    done < <(git worktree list --porcelain | awk '/^worktree /{print $2}')
+    [ "$acted" = "0" ] && echo "nothing to remove"
+    if [ "$acted" = "1" ] && [ "{{confirm}}" != "yes" ]; then
+        echo
+        echo "re-run with confirm=yes as the last argument to actually remove"
+    fi
+    true
+
+# --- Directories ---
+
+# Report every top-level directory in the workspace, with enough git state to judge it
+[group('dirs')]
+dirs:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "directories in {{workspace}}"
+    printf '    %-34s %-26s %-8s %s\n' DIRECTORY BRANCH DIRTY "LAST COMMIT"
+    for d in "{{workspace}}"/*/; do
+        name="$(basename "$d")"
+        if git -C "$d" rev-parse --git-dir >/dev/null 2>&1; then
+            br="$(git -C "$d" branch --show-current 2>/dev/null || echo '(detached)')"
+            dirty="$(git -C "$d" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
+            last="$(git -C "$d" log -1 --format='%cr' 2>/dev/null || echo '-')"
+        else
+            br="(not a repo)"; dirty="-"
+            last="modified $(date -u -r "$d" +%Y-%m-%d 2>/dev/null || echo '?')"
+        fi
+        printf '    %-34s %-26s %-8s %s\n' "$name" "$br" "$dirty" "$last"
+    done
+    echo
+    echo "  judgement call: this reports, it never deletes. Nothing here is safe to remove"
+    echo "  by rule alone, because a scratch directory can hold the only copy of something."
+
+# Report build output directories and their sizes, largest first
+[group('dirs')]
+targets:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "build output under $HOME (cargo target dirs and similar), largest first"
+    # Drop directories nested inside one already listed, so sizes are not counted twice.
+    find "$HOME" -maxdepth 3 -type f -name CACHEDIR.TAG 2>/dev/null \
+      | sed 's|/CACHEDIR.TAG$||' \
+      | sort \
+      | awk '{ keep = 1; for (p in seen) if (index($0, p "/") == 1) { keep = 0; break } \
+               if (keep) { print; seen[$0] = 1 } }' \
+      | while read -r d; do printf '%s\t%s\n' "$(du -sh "$d" 2>/dev/null | cut -f1)" "$d"; done \
+      | sort -h -r \
+      | sed 's/^/    /'
+    echo
+    echo "  these rebuild from source, so they are the cheapest thing to delete,"
+    echo "  and the most expensive to delete while a branch is still under review."
