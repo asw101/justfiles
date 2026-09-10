@@ -31,8 +31,11 @@ ts_state := env("HOME") / ".tailscale-container"
 mount := "/home/agent/pwd"
 project_mount := "/home/agent/project"
 
+# Forward the host SSH agent by default; set SANDBOX_SSH=0 to disable
+ssh_flag := if env("SANDBOX_SSH", "1") == "1" { "--ssh" } else { "" }
+
 # Shared `container run` flags
-run_flags := "-it --rm --cpus " + cpus + " --memory " + memory
+run_flags := "-it --rm --cpus " + cpus + " --memory " + memory + " " + ssh_flag
 
 # GH_TOKEN passthrough (passes --env GH_TOKEN if set in host environment)
 gh_token_flag := if env("GH_TOKEN", "") != "" { "--env GH_TOKEN" } else { "" }
@@ -197,6 +200,7 @@ run-tmux *args: _system-ensure
         container run -d --rm \
           --name "$name" \
           --cpus {{cpus}} --memory {{memory}} \
+          {{ssh_flag}} \
           --env GH_TOKEN \
           {{args}} \
           --volume {{invocation_directory()}}:{{mount}} \
@@ -260,6 +264,7 @@ create-named container_name project: _system-ensure
     container run -d --name {{container_name}} \
       --cpus {{cpus}} \
       --memory {{memory}} \
+      {{ssh_flag}} \
       {{gh_token_flag}} \
       --volume {{project}}:{{project_mount}} \
       {{image}} /bin/bash -c "sleep infinity"

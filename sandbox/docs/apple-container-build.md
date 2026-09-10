@@ -98,9 +98,10 @@ container run -it --rm \
   sandbox /bin/bash
 ```
 
-### Forward SSH keys into the container
+### Forward the SSH agent into the container
 
-To clone private repos or push to GitHub from inside the container:
+To clone private repositories, push to GitHub, or sign commits without copying
+private keys into the container:
 
 ```bash
 container run -it --rm \
@@ -108,6 +109,26 @@ container run -it --rm \
   --volume /path/to/your/project:/home/agent/project \
   sandbox /bin/bash
 ```
+
+All sandbox Justfile run recipes enable `--ssh` by default. Set
+`SANDBOX_SSH=0` to opt out.
+
+To enable Git SSH signing, first load the key into the macOS agent and register
+it as a GitHub signing key:
+
+```bash
+ssh-add --apple-use-keychain ~/.ssh/id_ed25519
+gh ssh-key add ~/.ssh/id_ed25519.pub --type signing --title "Apple Container signing"
+```
+
+Then run the bundled helper inside the container:
+
+```bash
+git-signing-setup
+```
+
+If the agent contains multiple keys, pass a fingerprint or unique key comment
+to `git-signing-setup`.
 
 ## 5. Run a Coding Agent Inside the Container
 

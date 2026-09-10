@@ -22,7 +22,8 @@ just run-project ~/myproject
 The Dockerfile builds an Ubuntu-based image with Homebrew, Rust, Go, `gh`,
 `just`, Tailscale, and coding agents (Claude Code, GitHub Copilot CLI, OpenAI
 Codex CLI). Copilot CLI is preconfigured with `rust-analyzer` and `gopls` for
-Rust and Go code intelligence.
+Rust and Go code intelligence. Sandbox launch recipes forward the host SSH
+agent by default for Git authentication and SSH commit signing.
 
 ## Recipes
 
@@ -41,6 +42,42 @@ Run `just` to see all available recipes. Highlights:
 | `attach <name>` | Attach to a named sandbox |
 | `image-release` | Build, tag, and push to GHCR |
 | `run-tailscale` | Run with Tailscale networking |
+
+## SSH Agent and Commit Signing
+
+Run recipes pass Apple Container's `--ssh` option by default. This exposes the
+macOS SSH agent inside the container without copying private keys. Set
+`SANDBOX_SSH=0` to disable forwarding.
+
+Create or load a key on the host and register its public key as a GitHub
+signing key. For 1Password, enable **Settings → Developer → Use the SSH
+agent**, create an Ed25519 SSH key, and add its public key at
+<https://github.com/settings/ssh/new> with **Key type: Signing Key**.
+
+```bash
+ssh-add --apple-use-keychain ~/.ssh/id_ed25519
+gh ssh-key add ~/.ssh/id_ed25519.pub --type signing --title "Apple Container signing"
+```
+
+At startup, the sandbox makes Apple Container's forwarded socket accessible to
+the `agent` user, matches the forwarded keys against the current GitHub
+account's signing keys, enables SSH commit and tag signing, and configures
+GitHub CLI credentials for HTTPS pushes. This is automatic when `GH_TOKEN` is
+available.
+
+To configure signing manually or override an ambiguous match:
+
+```bash
+# With one forwarded key
+git-signing-setup
+
+# With multiple keys, select one by fingerprint or unique comment
+git-signing-setup SHA256:...
+git-signing-setup apple-container-signing
+```
+
+The helper stores only the selected public key in the container. Confirm that
+the agent is available at any time with `ssh-add -L`.
 
 ## Passing Environment Variables
 

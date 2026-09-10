@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -u
+
+if [[ -n "${GH_TOKEN:-}" ]]; then
+    if ! gh auth setup-git; then
+        echo "warning: could not configure GitHub HTTPS credentials" >&2
+    fi
+fi
+
+if [[ -n "${SSH_AUTH_SOCK:-}" ]]; then
+    if ! git-signing-setup "${SANDBOX_SIGNING_KEY:-}"; then
+        echo "warning: automatic Git SSH signing setup failed" >&2
+    fi
+fi
+
+exec "$@"
