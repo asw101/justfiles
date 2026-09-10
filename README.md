@@ -5,3 +5,4 @@ A collection of [just](https://github.com/casey/just) command runners. Each subd
 - **[sandbox](sandbox/)** — Apple Container-based dev sandboxes
 - **[machine](machine/)** — Isolated Ubuntu development machines
 - **[secret](secret/)** — Password/secret management (get/set interface)
+- **[tidy](tidy/)** — Report and prune stale branches and worktrees
