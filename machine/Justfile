@@ -1,0 +1,134 @@
+# Build and manage cmbox with Apple's `container` CLI
+
+set positional-arguments := true
+
+root := justfile_directory()
+manager := root / "scripts" / "cmbox"
+image := env("CMBOX_IMAGE", "local/ubuntu-machine:26.04")
+base_image := env("CMBOX_BASE_IMAGE", "cmbox-sandbox:latest")
+sandbox_image := "sandbox:latest"
+base_context := root / "base"
+
+# List available recipes (default)
+default:
+    @just --list
+
+# --- System ---
+
+# Start the Apple container system service
+[group('system')]
+system-start:
+    container system start
+
+# Stop the Apple container system service
+[group('system')]
+system-stop:
+    container system stop
+
+# (private) Ensure the Apple container system service is running; start it if not
+[private]
+_system-ensure:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    status="$(container system status 2>/dev/null | awk '$1=="status"{print $2}')"
+    if [[ "$status" != "running" ]]; then
+        echo "Apple container system not running; starting..."
+        container system start
+    fi
+
+# --- Image ---
+
+# Build the base image from machine's own build context in base/
+[group('image')]
+base-build *args: _system-ensure
+    container build {{args}} \
+      --tag "{{base_image}}" \
+      --file "{{base_context / "Dockerfile"}}" \
+      "{{base_context}}"
+
+# Build cmbox from the base image; run base-build first
+[group('image')]
+build *args: _system-ensure
+    #!/usr/bin/env bash
+    exec env CMBOX_BASE_IMAGE="{{base_image}}" "{{manager}}" build "$@"
+
+# Build cmbox from sandbox:latest; build that image with the sibling `sandbox` command first, and use --force when switching bases
+[group('image')]
+build-from-sandbox *args: _system-ensure
+    #!/usr/bin/env bash
+    exec env CMBOX_BASE_IMAGE="{{sandbox_image}}" "{{manager}}" build "$@"
+
+# List local images
+[group('image')]
+image-list: _system-ensure
+    container image list
+
+# Delete the local cmbox image
+[group('image')]
+image-clean: _system-ensure
+    container image delete "{{image}}"
+
+# Delete the local base image
+[group('image')]
+base-clean: _system-ensure
+    container image delete "{{base_image}}"
+
+# --- Machine ---
+
+# Create and boot the machine; the image must already be built
+[group('machine')]
+up: _system-ensure
+    exec "{{manager}}" up
+
+# Run a command in the machine; omit CMD for an interactive shell
+[group('machine')]
+run *args: _system-ensure
+    #!/usr/bin/env bash
+    exec "{{manager}}" run "$@"
+
+# Run a shell script in the machine, preserving pipelines and shell syntax
+[group('machine')]
+sh script: _system-ensure
+    #!/usr/bin/env bash
+    exec "{{manager}}" sh "$1"
+
+# Start or restart Claude Remote Control
+[group('machine')]
+rc dir="": _system-ensure
+    #!/usr/bin/env bash
+    if [[ -n "${1:-}" ]]; then
+        exec "{{manager}}" rc "$1"
+    fi
+    exec "{{manager}}" rc
+
+# Stop Claude Remote Control
+[group('machine')]
+rc-stop: _system-ensure
+    exec "{{manager}}" rc-stop
+
+# Copy a file; prefix the guest-side path with machine:
+[group('machine')]
+cp src dst: _system-ensure
+    #!/usr/bin/env bash
+    exec "{{manager}}" cp "$1" "$2"
+
+# Show machine state
+[group('machine')]
+status: _system-ensure
+    exec "{{manager}}" status
+
+# Stop the machine
+[group('machine')]
+stop: _system-ensure
+    exec "{{manager}}" stop
+
+# Delete the machine and its disk; requires an explicit --yes
+[group('machine')]
+delete *args: _system-ensure
+    #!/usr/bin/env bash
+    exec "{{manager}}" delete "$@"
+
+# Fetch machine boot logs
+[group('machine')]
+logs: _system-ensure
+    exec "{{manager}}" logs

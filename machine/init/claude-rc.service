@@ -1,0 +1,38 @@
+[Unit]
+Description=Claude Code Remote Control (/home/user/tmp)
+Documentation=https://claude.ai/code
+After=network-online.target
+Wants=network-online.target
+# Never let systemd permanently give up on restarting. This directive belongs
+# in [Unit]; systemd silently ignores it in [Service].
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+
+# `user` is created by `container machine`, not by the image.
+User=user
+# Run `claude` here interactively once to accept the workspace trust prompt.
+WorkingDirectory=/home/user/tmp
+
+Environment=HOME=/home/user
+Environment=USER=user
+Environment=LOGNAME=user
+Environment=SHELL=/bin/bash
+Environment=TERM=xterm-256color
+Environment=PATH=/home/user/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin
+
+# Systemd's hostname specifier names the pre-created session after the machine.
+ExecStart=/usr/local/bin/claude rc --name %H-tmp
+
+StandardInput=null
+StandardOutput=journal
+StandardError=journal
+
+Restart=always
+RestartSec=5
+KillMode=control-group
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
