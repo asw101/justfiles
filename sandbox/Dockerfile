@@ -114,3 +114,4 @@ RUN mkdir -p /home/agent/.claude && \
     echo '{"attribution":{"commit":"","pr":""}}' > /home/agent/.claude/settings.json
 
 ENTRYPOINT ["/usr/local/bin/sandbox-init"]
+CMD ["/bin/bash"]
