@@ -64,6 +64,10 @@ branches-prune repo base="origin/main" remote="origin" confirm="no":
     set -euo pipefail
     cd "{{repo}}"
     base="{{base}}"
+    # Refresh first: judging containment from a stale remote ref can delete a
+    # branch that has gained commits since the last fetch.
+    git fetch --prune --quiet "{{remote}}" || true
+    git fetch --quiet "${base%%/*}" "${base#*/}" 2>/dev/null || true
     base_branch="${base#*/}"
     checked_out="$(git worktree list --porcelain | awk '/^branch /{sub("refs/heads/","",$2); print $2}')"
     to_delete=()
