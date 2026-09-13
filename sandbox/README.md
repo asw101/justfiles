@@ -100,11 +100,11 @@ sibling [`secret`](../secret/) Justfile, runs `copilot update` inside the
 container, then launches `copilot --allow-all-tools` (YOLO mode).
 
 ```bash
-# Uses SECRET_NAME (default: github/260200-token) from the secret Justfile
+# Uses github/260500-token-copilot
 sandbox run-copilot
 
 # Override the secret name or backend
-SECRET_NAME=github/my-token sandbox run-copilot
+COPILOT_SECRET_NAME=github/my-token sandbox run-copilot
 SECRET_SOURCE=keychain sandbox run-copilot
 
 # Pass extra container flags after the recipe name
