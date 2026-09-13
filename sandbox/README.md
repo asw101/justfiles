@@ -20,10 +20,12 @@ just run-project ~/myproject
 ## What's Inside
 
 The Dockerfile builds an Ubuntu-based image with Homebrew, Rust, Go, `gh`,
-`just`, Tailscale, and coding agents (Claude Code, GitHub Copilot CLI, OpenAI
-Codex CLI). Copilot CLI is preconfigured with `rust-analyzer` and `gopls` for
-Rust and Go code intelligence. Sandbox launch recipes forward the host SSH
-agent by default for Git authentication and SSH commit signing.
+`just`, [`mint`](https://github.com/asw101/mint), Tailscale, and coding agents
+(Claude Code, GitHub Copilot CLI, OpenAI Codex CLI). Copilot CLI is
+preconfigured with `rust-analyzer` and `gopls` for Rust and Go code
+intelligence, and `copilot-auto` defaults to GPT-6 Astra. Sandbox launch recipes
+forward the host SSH agent by default for Git authentication and SSH commit
+signing.
 
 ## Recipes
 

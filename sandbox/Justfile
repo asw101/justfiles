@@ -195,7 +195,7 @@ run-tmux *args: _system-ensure
         fi
         echo "Sandbox '$name' already exists; attaching..."
     else
-        GH_TOKEN="$(just --justfile {{secret_justfile}} get)"
+        GH_TOKEN="$(just --justfile {{secret_justfile}} get "{{copilot_secret_name}}")"
         export GH_TOKEN
         echo "Starting sandbox '$name'..."
         container run -d --rm \

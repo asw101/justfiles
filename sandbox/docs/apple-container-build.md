@@ -40,7 +40,9 @@ brew install just
 
 ## 3. Build the Sandbox Image
 
-The `sandbox/Dockerfile` builds an Ubuntu-based image with Homebrew, `gh`, `just`, and three coding agents pre-installed:
+The `sandbox/Dockerfile` builds an Ubuntu-based image with Homebrew, `gh`,
+`just`, [`mint`](https://github.com/asw101/mint), and three coding agents
+pre-installed:
 - **Claude Code** (`claude` / `claude-auto`)
 - **GitHub Copilot CLI** (`copilot` / `copilot-auto`)
 - **OpenAI Codex CLI** (`codex` / `codex-auto`)
@@ -148,7 +150,7 @@ claude-auto
 # Interactive mode
 copilot
 
-# Auto mode (allows all tools)
+# Auto mode (allows all tools and defaults to GPT-6 Astra)
 copilot-auto
 ```
 

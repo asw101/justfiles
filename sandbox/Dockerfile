@@ -1,9 +1,9 @@
-FROM ubuntu:latest
+FROM ubuntu:26.04
 
 USER root
 
 # Install dependencies for Homebrew and Tailscale
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     build-essential \
     curl \
     file \
@@ -27,7 +27,8 @@ RUN curl -fsSL https://tailscale.com/install.sh | sh
 
 # Create agent user with sudo access and linuxbrew directory
 RUN useradd -m -s /bin/bash agent && \
-    echo "agent ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
+    echo "agent ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/agent && \
+    chmod 0440 /etc/sudoers.d/agent && \
     mkdir -p /home/linuxbrew/.linuxbrew && \
     chown -R agent:agent /home/linuxbrew
 
@@ -74,14 +75,25 @@ RUN curl -fsSL https://claude.ai/install.sh | bash
 # Install Copilot CLI (latest release, direct binary download)
 RUN curl -fsSL https://gh.io/copilot-install | bash
 
-# Create wrapper scripts
+# Install mint from a checksummed release artifact.
 USER root
+ARG MINT_VERSION=v0.8.0
+RUN arch="$(dpkg --print-architecture)" && \
+    case "$arch" in amd64|arm64) ;; *) echo "unsupported mint architecture: $arch" >&2; exit 1;; esac && \
+    base="https://github.com/asw101/mint/releases/download/${MINT_VERSION}" && \
+    curl -fsSLo "/tmp/mint_linux_${arch}" "$base/mint_linux_${arch}" && \
+    curl -fsSLo /tmp/SHA256SUMS "$base/SHA256SUMS" && \
+    grep " mint_linux_${arch}$" /tmp/SHA256SUMS | (cd /tmp && sha256sum -c -) && \
+    install -m 0755 "/tmp/mint_linux_${arch}" /usr/local/bin/mint && \
+    rm -f "/tmp/mint_linux_${arch}" /tmp/SHA256SUMS
+
+# Create wrapper scripts
 COPY scripts/git-signing-setup /usr/local/bin/git-signing-setup
 COPY scripts/sandbox-init /usr/local/bin/sandbox-init
 RUN chmod +x /usr/local/bin/git-signing-setup /usr/local/bin/sandbox-init && \
     echo '#!/bin/bash\nexec claude --dangerously-skip-permissions "$@"' > /usr/local/bin/claude-auto && chmod +x /usr/local/bin/claude-auto && \
     echo '#!/bin/bash\nexec codex --full-auto "$@"' > /usr/local/bin/codex-auto && chmod +x /usr/local/bin/codex-auto && \
-    echo '#!/bin/bash\nexec copilot --allow-all-tools --model gpt-5.6-sol --effort high "$@"' > /usr/local/bin/copilot-auto && chmod +x /usr/local/bin/copilot-auto
+    echo '#!/bin/bash\nexec copilot --allow-all-tools --model gpt-6-astra --effort high "$@"' > /usr/local/bin/copilot-auto && chmod +x /usr/local/bin/copilot-auto
 
 USER agent
 
