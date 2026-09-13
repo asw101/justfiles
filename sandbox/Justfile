@@ -185,7 +185,7 @@ run-copilot *args: _system-ensure
       --workdir {{mount}} \
       {{image}} /bin/bash -lc 'copilot update || echo "warning: copilot update failed, continuing"; copilot-auto; exec /bin/bash'
 
-# Run Copilot in a named container that persists across stop/start cycles
+# Run or reattach to Copilot in a named container that persists across stop/start cycles
 [group('run')]
 run-copilot-persistent *args: _system-ensure
     #!/usr/bin/env bash
@@ -214,7 +214,8 @@ run-copilot-persistent *args: _system-ensure
           {{image}} /bin/bash -lc 'exec sleep infinity' >/dev/null
     fi
     exec container exec -it "$name" /bin/bash -lc \
-      'copilot update || echo "warning: copilot update failed, continuing"; copilot-auto; exec /bin/bash'
+      "exec dtach -A /tmp/copilot.dtach -z /bin/bash -lc \
+        'copilot update || echo \"warning: copilot update failed, continuing\"; exec copilot-auto'"
 
 # Detached sandbox in tmux (survives terminal disconnect; run `copilot-auto` yourself inside)
 [group('run')]

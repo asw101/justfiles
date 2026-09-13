@@ -23,9 +23,9 @@ The Dockerfile builds an Ubuntu-based image with Homebrew, Rust, Go, `gh`,
 `just`, [`mint`](https://github.com/asw101/mint), Tailscale, and coding agents
 (Claude Code, GitHub Copilot CLI, OpenAI Codex CLI). Copilot CLI is
 preconfigured with `rust-analyzer` and `gopls` for Rust and Go code
-intelligence, and `copilot-auto` defaults to GPT-6 Astra. Sandbox launch recipes
-forward the host SSH agent by default for Git authentication and SSH commit
-signing.
+intelligence, and defaults to GPT-6 Astra both directly and through
+`copilot-auto`. Sandbox launch recipes forward the host SSH agent by default for
+Git authentication and SSH commit signing.
 
 ## Recipes
 
@@ -36,7 +36,7 @@ Run `just` to see all available recipes. Highlights:
 | `image-build` | Build the sandbox image |
 | `run [args]` | Interactive shell with current directory mounted |
 | `run-copilot [args]` | Pull `COPILOT_GITHUB_TOKEN` from [`secret`](../secret/), optionally forward host `GH_TOKEN`, update Copilot CLI, launch in YOLO mode |
-| `run-copilot-persistent [args]` | Run Copilot in a named container that can be stopped and restarted |
+| `run-copilot-persistent [args]` | Create or reattach to Copilot in a persistent named container |
 | `run-tmux [args]` | Detached sandbox with persistent tmux session — resumable across terminal disconnects (does not auto-launch Copilot) |
 | `attach-tmux [name]` | Re-attach to the tmux session of a `run-tmux` sandbox |
 | `stop-tmux [name]` | Stop the `run-tmux` sandbox container |
@@ -122,23 +122,36 @@ sandbox run-copilot --env FOO=bar
 ## Persistent Copilot Sandbox
 
 `run-copilot-persistent` provides the same token setup and Copilot launch as
-`run-copilot`, but keeps the named container after it stops. The first run
-mounts the current directory and stores the container configuration; later runs
-start the same container and launch Copilot in it.
+`run-copilot`, but keeps the named container after it stops and runs Copilot
+under `dtach`. The first run mounts the current directory and stores the
+container configuration. Later runs start the same container and reattach to
+the running Copilot terminal when one exists.
 
 ```bash
-# Create or restart the persistent container and launch Copilot
+# Rebuild once after installing this recipe
+sandbox image-build
+
+# Create the persistent container and launch Copilot
+sandbox run-copilot-persistent
+
+# Detach without stopping Copilot: press Ctrl-\
+
+# Reattach to the running Copilot session
 sandbox run-copilot-persistent
 
 # Stop it without deleting its filesystem
 sandbox stop copilot-sandbox
 
-# Restart it and launch Copilot again
+# Restart it and launch a new Copilot process
 sandbox run-copilot-persistent
 
 # Delete it when it is no longer needed
 sandbox delete copilot-sandbox
 ```
+
+If `copilot-sandbox` was created from an older image, delete it once with
+`sandbox delete copilot-sandbox` before the first run so the recipe creates it
+from the rebuilt image.
 
 Override the default container name or Copilot secret with
 `COPILOT_SANDBOX_NAME` or `COPILOT_SECRET_NAME`:
@@ -151,7 +164,9 @@ sandbox run-copilot-persistent
 
 Container flags passed after the recipe name apply only when the container is
 first created. The project directory mounted on that first run remains the
-workspace on subsequent starts.
+workspace on subsequent starts. Closing the host terminal also detaches from
+Copilot while leaving it running. Stopping the container terminates Copilot and
+`dtach`; the next run starts a new Copilot process in the preserved container.
 
 ## Resumable Tmux Sandbox
 

@@ -10,6 +10,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
     git \
     procps \
     ca-certificates \
+    dtach \
     iptables \
     sudo \
     tmux \
@@ -97,9 +98,11 @@ RUN chmod +x /usr/local/bin/git-signing-setup /usr/local/bin/sandbox-init && \
 
 USER agent
 
-# Copilot CLI config: disable co-author attribution and pre-trust the workspace
+# Copilot CLI config: default to GPT-6 Astra, disable co-author attribution,
+# and pre-trust the workspace
 RUN mkdir -p /home/agent/.copilot && \
-    echo '{"include_coauthor":false,"trustedFolders":["/home/agent/pwd"],"remoteExport":false}' > /home/agent/.copilot/config.json
+    echo '{"include_coauthor":false,"trustedFolders":["/home/agent/pwd"],"remoteExport":false}' > /home/agent/.copilot/config.json && \
+    echo '{"model":"gpt-6-astra"}' > /home/agent/.copilot/settings.json
 
 # Make Rust and Go code intelligence available to Copilot CLI
 RUN printf '%s\n' \
