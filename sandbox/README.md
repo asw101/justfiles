@@ -35,7 +35,7 @@ Run `just` to see all available recipes. Highlights:
 |---|---|
 | `image-build` | Build the sandbox image |
 | `run [args]` | Interactive shell with current directory mounted |
-| `run-copilot [args]` | Pull `GH_TOKEN` from [`secret`](../secret/), update Copilot CLI, launch in YOLO mode |
+| `run-copilot [args]` | Pull `COPILOT_GITHUB_TOKEN` from [`secret`](../secret/), optionally forward host `GH_TOKEN`, update Copilot CLI, launch in YOLO mode |
 | `run-tmux [args]` | Detached sandbox with persistent tmux session — resumable across terminal disconnects (does not auto-launch Copilot) |
 | `attach-tmux [name]` | Re-attach to the tmux session of a `run-tmux` sandbox |
 | `stop-tmux [name]` | Stop the `run-tmux` sandbox container |
@@ -97,9 +97,14 @@ just run --env MY_SECRET
 
 ## YOLO Copilot Run
 
-`run-copilot` automates a common workflow: it pulls `GH_TOKEN` from the
+`run-copilot` automates a common workflow: it pulls `COPILOT_GITHUB_TOKEN` from the
 sibling [`secret`](../secret/) Justfile, runs `copilot update` inside the
 container, then launches `copilot --allow-all-tools` (YOLO mode).
+
+The secret is only used for Copilot authentication; it is not assigned to
+`GH_TOKEN`. If `GH_TOKEN` is set on the host, it is also passed through unchanged
+for `gh` and Git HTTPS authentication. Copilot prefers `COPILOT_GITHUB_TOKEN`
+over `GH_TOKEN`, so both credentials can coexist without sharing permissions.
 
 ```bash
 # Uses github/260500-token-copilot

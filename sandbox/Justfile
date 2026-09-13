@@ -9,7 +9,7 @@ root := justfile_directory()
 # Dockerfile path
 dockerfile := root / "Dockerfile"
 
-# Sibling `secret` Justfile (used by run-copilot to fetch GH_TOKEN)
+# Sibling `secret` Justfile (used to fetch the Copilot credential)
 secret_justfile := root / ".." / "secret" / "Justfile"
 copilot_secret_name := env("COPILOT_SECRET_NAME", "github/260500-token-copilot")
 
@@ -167,15 +167,16 @@ run *args: _system-ensure
       --workdir {{mount}} \
       {{image}} /bin/bash
 
-# Run with GH_TOKEN auto-pulled from `secret`, update Copilot CLI, then launch Copilot in YOLO mode
+# Run with COPILOT_GITHUB_TOKEN from `secret` and optional host GH_TOKEN, update Copilot CLI, then launch in YOLO mode
 [group('run')]
 run-copilot *args: _system-ensure
     #!/usr/bin/env bash
     set -euo pipefail
-    GH_TOKEN="$(just --justfile {{secret_justfile}} get "{{copilot_secret_name}}")"
-    export GH_TOKEN
+    COPILOT_GITHUB_TOKEN="$(just --justfile {{secret_justfile}} get "{{copilot_secret_name}}")"
+    export COPILOT_GITHUB_TOKEN
     container run {{run_flags}} \
-      --env GH_TOKEN \
+      --env COPILOT_GITHUB_TOKEN \
+      {{gh_token_flag}} \
       {{args}} \
       --volume {{invocation_directory()}}:{{mount}} \
       --workdir {{mount}} \
