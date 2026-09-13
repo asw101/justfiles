@@ -34,8 +34,8 @@ Rebuilding the image does not update an existing machine disk. Copy and install
 the unit explicitly:
 
 ```bash
-machine cp machine/init/claude-rc.service machine:/tmp/claude-rc.service
-machine sh '
+cmbox cp cmbox/init/claude-rc.service cmbox:/tmp/claude-rc.service
+cmbox sh '
   sudo install -m 0644 /tmp/claude-rc.service /etc/systemd/system/claude-rc.service &&
   sudo systemctl daemon-reload'
 ```

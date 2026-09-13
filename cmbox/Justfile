@@ -4,7 +4,7 @@ set positional-arguments := true
 
 root := justfile_directory()
 manager := root / "scripts" / "cmbox"
-image := env("CMBOX_IMAGE", "local/ubuntu-machine:26.04")
+image := env("CMBOX_IMAGE", "local/cmbox:26.04")
 base_image := env("CMBOX_BASE_IMAGE", "cmbox-sandbox:latest")
 sandbox_image := "sandbox:latest"
 base_context := root / "base"
@@ -38,7 +38,7 @@ _system-ensure:
 
 # --- Image ---
 
-# Build the base image from machine's own build context in base/
+# Build the base image from cmbox's own build context in base/
 [group('image')]
 base-build *args: _system-ensure
     container build {{args}} \
@@ -73,27 +73,27 @@ image-clean: _system-ensure
 base-clean: _system-ensure
     container image delete "{{base_image}}"
 
-# --- Machine ---
+# --- Cmbox ---
 
 # Create and boot the machine; the image must already be built
-[group('machine')]
+[group('cmbox')]
 up: _system-ensure
     exec "{{manager}}" up
 
 # Run a command in the machine; omit CMD for an interactive shell
-[group('machine')]
+[group('cmbox')]
 run *args: _system-ensure
     #!/usr/bin/env bash
     exec "{{manager}}" run "$@"
 
 # Run a shell script in the machine, preserving pipelines and shell syntax
-[group('machine')]
+[group('cmbox')]
 sh script: _system-ensure
     #!/usr/bin/env bash
     exec "{{manager}}" sh "$1"
 
 # Start or restart Claude Remote Control
-[group('machine')]
+[group('cmbox')]
 rc dir="": _system-ensure
     #!/usr/bin/env bash
     if [[ -n "${1:-}" ]]; then
@@ -102,33 +102,33 @@ rc dir="": _system-ensure
     exec "{{manager}}" rc
 
 # Stop Claude Remote Control
-[group('machine')]
+[group('cmbox')]
 rc-stop: _system-ensure
     exec "{{manager}}" rc-stop
 
-# Copy a file; prefix the guest-side path with machine:
-[group('machine')]
+# Copy a file; prefix the guest-side path with cmbox:
+[group('cmbox')]
 cp src dst: _system-ensure
     #!/usr/bin/env bash
     exec "{{manager}}" cp "$1" "$2"
 
 # Show machine state
-[group('machine')]
+[group('cmbox')]
 status: _system-ensure
     exec "{{manager}}" status
 
 # Stop the machine
-[group('machine')]
+[group('cmbox')]
 stop: _system-ensure
     exec "{{manager}}" stop
 
 # Delete the machine and its disk; requires an explicit --yes
-[group('machine')]
+[group('cmbox')]
 delete *args: _system-ensure
     #!/usr/bin/env bash
     exec "{{manager}}" delete "$@"
 
 # Fetch machine boot logs
-[group('machine')]
+[group('cmbox')]
 logs: _system-ensure
     exec "{{manager}}" logs

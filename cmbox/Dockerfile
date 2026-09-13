@@ -1,4 +1,4 @@
-# Machine-specific layer over either machine's own base image or the sibling
+# Cmbox-specific layer over either cmbox's own base image or the sibling
 # sandbox image.
 ARG BASE_IMAGE=cmbox-sandbox:latest
 FROM ${BASE_IMAGE}
@@ -10,7 +10,7 @@ ENV container=container
 # `container machine` execs /sbin/init. The selected base image supplies the
 # development toolchain; cmbox adds only what is needed to boot as a VM.
 RUN apt-get update && \
-    apt-get install -y \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
       dbus \
       iproute2 \
       iputils-ping \

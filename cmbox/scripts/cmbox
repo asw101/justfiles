@@ -10,7 +10,7 @@
 set -euo pipefail
 
 MACHINE="${CMBOX_MACHINE:-cmbox}"
-IMAGE="${CMBOX_IMAGE:-local/ubuntu-machine:26.04}"
+IMAGE="${CMBOX_IMAGE:-local/cmbox:26.04}"
 CPUS="${CMBOX_CPUS:-4}"
 MEMORY="${CMBOX_MEMORY:-8G}"
 HOME_MOUNT="${CMBOX_HOME_MOUNT:-none}"
@@ -172,13 +172,13 @@ cmd_rc_stop() {
 }
 
 cmd_cp() {
-    [[ $# -eq 2 ]] || die "usage: cmbox cp <src> <dst>   (prefix guest paths with 'machine:')"
+    [[ $# -eq 2 ]] || die "usage: cmbox cp <src> <dst>   (prefix guest paths with 'cmbox:')"
     machine_exists || die "machine '$MACHINE' does not exist"
     local cid
     cid=$(container machine inspect "$MACHINE" 2>/dev/null |
         sed -n 's/.*"containerId" : "\([^"]*\)".*/\1/p' | head -1)
     [[ -n "$cid" ]] || die "could not resolve the container id for '$MACHINE'"
-    container cp "${1/#machine:/$cid:}" "${2/#machine:/$cid:}"
+    container cp "${1/#cmbox:/$cid:}" "${2/#cmbox:/$cid:}"
 }
 
 cmd_status() {
@@ -218,7 +218,7 @@ Usage: cmbox <command> [args]
   sh 'SCRIPT'        Run a raw shell script inside the machine (pipelines, &&, \$vars)
   rc [DIR]           Start/restart \`claude rc\` detached in DIR (default: ~/tmp/rc)
   rc-stop            Stop a running \`claude rc\`
-  cp SRC DST         Copy files host <-> machine; prefix guest paths with 'machine:'
+  cp SRC DST         Copy files host <-> machine; prefix guest paths with 'cmbox:'
   status             Show the machine's state
   stop               Stop the machine
   delete --yes       Delete the machine and its disk
@@ -227,7 +227,7 @@ Usage: cmbox <command> [args]
 
 Configuration (environment variables):
   CMBOX_MACHINE      Machine name           (default: cmbox)
-  CMBOX_IMAGE        Image reference        (default: local/ubuntu-machine:26.04)
+  CMBOX_IMAGE        Image reference        (default: local/cmbox:26.04)
   CMBOX_BASE_IMAGE   Build base image       (default: cmbox-sandbox:latest)
   CMBOX_CPUS         vCPUs at create time   (default: 4)
   CMBOX_MEMORY       Memory at create time  (default: 8G)
@@ -242,9 +242,12 @@ EOF
 }
 
 main() {
-    require_cli
     local cmd="${1:-help}"
     [[ $# -gt 0 ]] && shift || true
+    case "$cmd" in
+        help | -h | --help) usage; return 0 ;;
+    esac
+    require_cli
     case "$cmd" in
         up) cmd_up "$@" ;;
         run) cmd_run "$@" ;;
@@ -257,7 +260,6 @@ main() {
         delete | rm) cmd_delete "$@" ;;
         build) cmd_build "$@" ;;
         logs) cmd_logs "$@" ;;
-        help | -h | --help) usage ;;
         *) die "unknown command '$cmd' (try 'cmbox help')" ;;
     esac
 }
