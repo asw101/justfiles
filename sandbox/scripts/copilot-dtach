@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+socket="${COPILOT_DTACH_SOCKET:-/tmp/copilot.dtach}"
+copilot_args=()
+
+if [ -n "${COPILOT_SESSION_NAME:-}" ]; then
+  copilot_args+=(--name "$COPILOT_SESSION_NAME")
+fi
+
+case "${COPILOT_REMOTE:-0}" in
+  0|false|no|"") ;;
+  1|true|yes) copilot_args+=(--remote) ;;
+  *)
+    echo "COPILOT_REMOTE must be 1, true, yes, 0, false, or no" >&2
+    exit 2
+    ;;
+esac
+
+exec dtach-session "$socket" /bin/bash -lc \
+  'copilot update || echo "warning: copilot update failed, continuing"; exec copilot-auto "$@"' \
+  copilot-dtach "${copilot_args[@]}" "$@"

@@ -36,7 +36,7 @@ Run `just` to see all available recipes. Highlights:
 | `image-build` | Build the sandbox image |
 | `run [args]` | Interactive shell with current directory mounted |
 | `run-copilot [args]` | Pull `COPILOT_GITHUB_TOKEN` from [`secret`](../secret/), optionally forward host `GH_TOKEN`, update Copilot CLI, launch in YOLO mode |
-| `run-copilot-persistent [args]` | Create or reattach to Copilot in a persistent named container |
+| `run-copilot-persistent [args]` | Open a shell in a persistent named container with Copilot authentication |
 | `run-tmux [args]` | Detached sandbox with persistent tmux session — resumable across terminal disconnects (does not auto-launch Copilot) |
 | `attach-tmux [name]` | Re-attach to the tmux session of a `run-tmux` sandbox |
 | `stop-tmux [name]` | Stop the `run-tmux` sandbox container |
@@ -121,32 +121,68 @@ sandbox run-copilot --env FOO=bar
 
 ## Persistent Copilot Sandbox
 
-`run-copilot-persistent` provides the same token setup and Copilot launch as
-`run-copilot`, but keeps the named container after it stops and runs Copilot
-under `dtach`. The first run mounts the current directory and stores the
-container configuration. Later runs start the same container and reattach to
-the running Copilot terminal when one exists.
+`run-copilot-persistent` provides the same token setup as `run-copilot`, but
+opens a normal shell in a named container that remains available after the
+shell exits. Inside it, `copilot-dtach` creates or reattaches to a Copilot
+process that survives terminal disconnections.
 
 ```bash
 # Rebuild once after installing this recipe
 sandbox image-build
 
-# Create the persistent container and launch Copilot
+# Create or start the persistent container and open its shell
 sandbox run-copilot-persistent
 
-# Detach without stopping Copilot: press Ctrl-\
+# Inside the container, create or reattach to Copilot
+copilot-dtach
 
-# Reattach to the running Copilot session
+# Detach from Copilot without stopping it: press Ctrl-\
+# You are now back at the container shell; leave it normally
+exit
+
+# Later, return to the container shell
 sandbox run-copilot-persistent
+
+# Reattach to the same Copilot process
+copilot-dtach
 
 # Stop it without deleting its filesystem
 sandbox stop copilot-sandbox
 
-# Restart it and launch a new Copilot process
+# Restart it and enter its shell
 sandbox run-copilot-persistent
 
 # Delete it when it is no longer needed
 sandbox delete copilot-sandbox
+```
+
+The same container includes equivalent helpers for Claude Code and Codex. Each
+uses its own `dtach` session, so the agents can run independently:
+
+```bash
+claude-dtach
+codex-dtach
+copilot-dtach
+```
+
+Press `Ctrl-\` to detach from any helper, then run the same helper again to
+reattach. The helpers restore normal terminal and mouse modes after detaching.
+Override their socket paths with `CLAUDE_DTACH_SOCKET`, `CODEX_DTACH_SOCKET`,
+or `COPILOT_DTACH_SOCKET`.
+
+Name a new Copilot session and enable remote control with environment variables:
+
+```bash
+COPILOT_SESSION_NAME=my-project COPILOT_REMOTE=1 copilot-dtach
+```
+
+This starts Copilot as `copilot --name my-project --remote`. The values apply
+only when `dtach` creates a new Copilot process; when the socket already has a
+running process, `copilot-dtach` reattaches to it instead. You can also pass the
+native flags directly:
+
+```bash
+copilot-dtach --name my-project --remote
 ```
 
 If `copilot-sandbox` was created from an older image, delete it once with
@@ -164,9 +200,10 @@ sandbox run-copilot-persistent
 
 Container flags passed after the recipe name apply only when the container is
 first created. The project directory mounted on that first run remains the
-workspace on subsequent starts. Closing the host terminal also detaches from
-Copilot while leaving it running. Stopping the container terminates Copilot and
-`dtach`; the next run starts a new Copilot process in the preserved container.
+workspace on subsequent starts. Closing the host terminal leaves the container
+and its `dtach`-managed Copilot process running. Stopping the container
+terminates Copilot and `dtach`; after restarting, run `copilot-dtach` to create
+a new Copilot process in the preserved container.
 
 ## Resumable Tmux Sandbox
 
