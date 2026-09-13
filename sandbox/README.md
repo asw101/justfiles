@@ -36,6 +36,7 @@ Run `just` to see all available recipes. Highlights:
 | `image-build` | Build the sandbox image |
 | `run [args]` | Interactive shell with current directory mounted |
 | `run-copilot [args]` | Pull `COPILOT_GITHUB_TOKEN` from [`secret`](../secret/), optionally forward host `GH_TOKEN`, update Copilot CLI, launch in YOLO mode |
+| `run-copilot-persistent [args]` | Run Copilot in a named container that can be stopped and restarted |
 | `run-tmux [args]` | Detached sandbox with persistent tmux session — resumable across terminal disconnects (does not auto-launch Copilot) |
 | `attach-tmux [name]` | Re-attach to the tmux session of a `run-tmux` sandbox |
 | `stop-tmux [name]` | Stop the `run-tmux` sandbox container |
@@ -117,6 +118,40 @@ SECRET_SOURCE=keychain sandbox run-copilot
 # Pass extra container flags after the recipe name
 sandbox run-copilot --env FOO=bar
 ```
+
+## Persistent Copilot Sandbox
+
+`run-copilot-persistent` provides the same token setup and Copilot launch as
+`run-copilot`, but keeps the named container after it stops. The first run
+mounts the current directory and stores the container configuration; later runs
+start the same container and launch Copilot in it.
+
+```bash
+# Create or restart the persistent container and launch Copilot
+sandbox run-copilot-persistent
+
+# Stop it without deleting its filesystem
+sandbox stop copilot-sandbox
+
+# Restart it and launch Copilot again
+sandbox run-copilot-persistent
+
+# Delete it when it is no longer needed
+sandbox delete copilot-sandbox
+```
+
+Override the default container name or Copilot secret with
+`COPILOT_SANDBOX_NAME` or `COPILOT_SECRET_NAME`:
+
+```bash
+COPILOT_SANDBOX_NAME=my-project \
+COPILOT_SECRET_NAME=github/my-token \
+sandbox run-copilot-persistent
+```
+
+Container flags passed after the recipe name apply only when the container is
+first created. The project directory mounted on that first run remains the
+workspace on subsequent starts.
 
 ## Resumable Tmux Sandbox
 
