@@ -45,13 +45,11 @@ RUN NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.co
 # Add brew to PATH
 ENV PATH="/home/agent/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/bin:/home/agent/.cargo/bin:/home/agent/.local/bin:${PATH}"
 
-# Set a short prompt, add brew to PATH for login shells (Tailscale SSH),
-# and auto-attach to tmux on SSH login
+# Set a short prompt and add brew to PATH for login shells (including SSH).
 RUN echo 'export PATH="/home/agent/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/bin:/home/agent/.cargo/bin:/home/agent/.local/bin:$PATH"' >> /home/agent/.bashrc && \
     echo 'export LANG=C.UTF-8' >> /home/agent/.bashrc && \
     echo 'export LC_ALL=C.UTF-8' >> /home/agent/.bashrc && \
     echo "PS1='\\W \$ '" >> /home/agent/.bashrc && \
-    echo 'if [ -n "$SSH_CONNECTION" ] && [ -z "$TMUX" ]; then tmux attach -t main 2>/dev/null || tmux new -s main; fi' >> /home/agent/.bashrc && \
     echo '[ -f ~/.bashrc ] && . ~/.bashrc' > /home/agent/.profile
 
 # Configure tmux: easy prefix (Ctrl+a), mouse mode, status bar hint

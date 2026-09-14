@@ -164,6 +164,18 @@ sandbox up
 sandbox delete sandbox
 ```
 
+### SSH logins
+
+Interactive SSH logins, including Tailscale SSH, open a plain Bash shell.
+Login does not automatically start an agent or attach to tmux or shpool.
+Change to your project directory, then run `claude-shpool`, `codex-shpool`,
+or `copilot-shpool` to start or reattach to an agent. Detaching returns to the
+SSH shell; `exit` then closes the connection. Tmux remains available explicitly.
+
+Existing containers retain their shell configuration. To adopt this behavior
+without recreating the container, remove the line containing
+`SSH_CONNECTION` and `tmux attach -t main` from `~/.bashrc`.
+
 ### Shpool agent sessions
 
 [Shpool](https://github.com/shell-pool/shpool) keeps native terminal scrollback

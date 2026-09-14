@@ -76,6 +76,20 @@ cmbox build-from-sandbox
 
 The steps are intentionally separate so the base image can be reused.
 
+## SSH Logins
+
+Interactive Bash logins over SSH open a plain shell, without automatically
+starting an agent or attaching to tmux or shpool. Start your chosen agent or
+session manager explicitly after changing to the desired workspace. Tmux
+remains installed; the standalone cmbox base does not include shpool helpers.
+
+The standalone base seeds this shell configuration through `/etc/skel` for
+new machine users. Existing machines and home directories are not updated by
+an image rebuild. To update an existing user, remove the line containing
+`SSH_CONNECTION` and `tmux attach -t main` from their `~/.bashrc`; remove it
+from `/etc/skel/.bashrc` as well if present, so future users inherit the same
+behavior.
+
 ## Running Commands
 
 ```bash
