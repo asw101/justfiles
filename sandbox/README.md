@@ -123,7 +123,7 @@ sandbox run-copilot --env FOO=bar
 
 `run-copilot-persistent` provides the same token setup as `run-copilot`, but
 opens a normal shell in a named container that remains available after the
-shell exits. Inside it, `copilot-dtach` creates or reattaches to a Copilot
+shell exits. Inside it, `copilot-shpool` creates or reattaches to a Copilot
 process that survives terminal disconnections.
 
 ```bash
@@ -134,9 +134,9 @@ sandbox image-build
 sandbox run-copilot-persistent
 
 # Inside the container, create or reattach to Copilot
-copilot-dtach
+copilot-shpool
 
-# Detach from Copilot without stopping it: press Ctrl-\
+# Detach without stopping Copilot: press Ctrl-Space, release, then Ctrl-q
 # You are now back at the container shell; leave it normally
 exit
 
@@ -144,7 +144,7 @@ exit
 sandbox run-copilot-persistent
 
 # Reattach to the same Copilot process
-copilot-dtach
+copilot-shpool
 
 # Stop it without deleting its filesystem
 sandbox stop copilot-sandbox
@@ -156,8 +156,73 @@ sandbox run-copilot-persistent
 sandbox delete copilot-sandbox
 ```
 
-The same container includes equivalent helpers for Claude Code and Codex. Each
-uses its own `dtach` session, so the agents can run independently:
+### Shpool agent sessions
+
+[Shpool](https://github.com/shell-pool/shpool) keeps native terminal scrollback
+and copy/paste, and restores the screen on reattach, including output produced
+while disconnected. It does not provide tmux-style panes or windows.
+
+Each agent has an independent named session:
+
+```bash
+claude-shpool
+codex-shpool
+copilot-shpool
+```
+
+These use the same `*-auto` commands and permission settings as the existing
+dtach/tmux helpers. Copilot is updated only when a new session starts.
+
+Detach with **Ctrl-Space, then Ctrl-q** and run the same helper to reattach.
+Shpool starts its daemon automatically; no systemd service is needed.
+
+```bash
+shpool list
+
+# Free a session if an old terminal is still attached, then reconnect
+shpool detach copilot
+copilot-shpool
+
+# Terminate the agent and remove its session
+shpool kill copilot
+```
+
+Only one terminal can be attached to a shpool session at a time. The helpers
+do not forcibly disconnect another terminal.
+
+Override the names with `CLAUDE_SHPOOL_SESSION`, `CODEX_SHPOOL_SESSION`, or
+`COPILOT_SHPOOL_SESSION`. For example:
+
+```bash
+COPILOT_SHPOOL_SESSION=feature \
+COPILOT_SESSION_NAME=feature \
+COPILOT_REMOTE=1 \
+copilot-shpool
+
+claude-shpool --resume
+codex-shpool resume --last
+```
+
+Session names must not contain whitespace, slashes, or braces, and cannot be
+`.` or `..`. Arguments are forwarded to the agent, not to shpool. The current
+directory, startup arguments, and environment settings apply only when creating
+a session; reattaching preserves the existing process and its original directory
+and settings. `COPILOT_SESSION_NAME` and `COPILOT_REMOTE` work just like in the
+dtach/tmux helpers.
+
+The image installs shpool with Homebrew and configures screen restoration and
+environment forwarding in `/etc/shpool/config.toml`. This includes PATH, GitHub
+tokens, Claude/OpenAI API credentials and base URLs, and agent config-directory
+overrides. Loading `/etc/environment` is disabled so Ubuntu's default PATH
+does not overwrite the forwarded Homebrew PATH. SSH-agent forwarding is handled
+by shpool itself. To customize shpool, use `~/.config/shpool/config.toml`;
+if you set `forward_env`, include
+the existing entries from `/etc/shpool/config.toml` because the list is replaced,
+not extended. Other exported variables are not automatically forwarded.
+
+### Existing dtach and tmux helpers
+
+The dtach helpers remain available:
 
 ```bash
 claude-dtach
@@ -212,9 +277,21 @@ native flags directly:
 copilot-dtach --name my-project --remote
 ```
 
-If `copilot-sandbox` was created from an older image, delete it once with
-`sandbox delete copilot-sandbox` before the first run so the recipe creates it
-from the rebuilt image.
+### Updating an existing sandbox
+
+Rebuilding the image does not update existing containers. To try shpool without
+deleting your existing sandbox, build the image and create a differently named
+container from your project directory on the host:
+
+```bash
+sandbox image-build
+COPILOT_SANDBOX_NAME=copilot-shpool-sandbox sandbox run-copilot-persistent
+```
+
+Alternatively, back up any container-only files and configuration before
+deleting the old container with `sandbox delete copilot-sandbox`; the next run
+will create it from the rebuilt image. Deletion loses the container filesystem,
+but not host-mounted project files.
 
 Override the default container name or Copilot secret with
 `COPILOT_SANDBOX_NAME` or `COPILOT_SECRET_NAME`:
@@ -228,9 +305,11 @@ sandbox run-copilot-persistent
 Container flags passed after the recipe name apply only when the container is
 first created. The project directory mounted on that first run remains the
 workspace on subsequent starts. Closing the host terminal leaves the container
-and its `dtach`-managed Copilot process running. Stopping the container
-terminates Copilot and `dtach`; after restarting, run `copilot-dtach` to create
-a new Copilot process in the preserved container.
+and its shpool-, dtach-, or tmux-managed agent processes running. Stopping the
+container terminates those processes and their session managers; after
+restarting, run the relevant helper to create a new agent process in the
+preserved container. Shpool does not preserve live processes across container
+stops or restarts.
 
 ## Resumable Tmux Sandbox
 

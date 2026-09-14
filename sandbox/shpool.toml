@@ -1,0 +1,22 @@
+session_restore_mode = "screen"
+
+# Ubuntu's /etc/environment PATH would overwrite the forwarded Homebrew PATH.
+noread_etc_environment = true
+
+# shpool starts sessions with a minimal environment, not the daemon's environment.
+# Forward credentials by name rather than embedding their values in commands.
+forward_env = [
+    "PATH",
+    "LC_ALL",
+    "COLORTERM",
+    "GH_TOKEN",
+    "GITHUB_TOKEN",
+    "COPILOT_GITHUB_TOKEN",
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN",
+    "ANTHROPIC_BASE_URL",
+    "CLAUDE_CONFIG_DIR",
+    "OPENAI_API_KEY",
+    "OPENAI_BASE_URL",
+    "CODEX_HOME",
+]

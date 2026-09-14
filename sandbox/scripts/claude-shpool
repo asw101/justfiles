@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+session="${CLAUDE_SHPOOL_SESSION:-claude}"
+
+exec shpool-session "$session" claude-auto "$@"

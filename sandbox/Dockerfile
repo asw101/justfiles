@@ -71,7 +71,7 @@ RUN printf '%s\n' \
     > /home/agent/.tmux.conf
 
 # Install development tools, language servers, and coding agents
-RUN brew install gh just go gopls rust-analyzer codex
+RUN brew install gh just go gopls rust-analyzer codex shpool
 
 # Install the stable Rust toolchain with Cargo, Rustfmt, and Clippy
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
@@ -98,18 +98,23 @@ RUN arch="$(dpkg --print-architecture)" && \
 
 # Create wrapper scripts
 COPY scripts/claude-dtach /usr/local/bin/claude-dtach
+COPY scripts/claude-shpool /usr/local/bin/claude-shpool
 COPY scripts/claude-tmux /usr/local/bin/claude-tmux
 COPY scripts/codex-dtach /usr/local/bin/codex-dtach
+COPY scripts/codex-shpool /usr/local/bin/codex-shpool
 COPY scripts/codex-tmux /usr/local/bin/codex-tmux
 COPY scripts/copilot-dtach /usr/local/bin/copilot-dtach
+COPY scripts/copilot-shpool /usr/local/bin/copilot-shpool
 COPY scripts/copilot-tmux /usr/local/bin/copilot-tmux
 COPY scripts/dtach-session /usr/local/bin/dtach-session
+COPY scripts/shpool-session /usr/local/bin/shpool-session
+COPY shpool.toml /etc/shpool/config.toml
 COPY scripts/git-signing-setup /usr/local/bin/git-signing-setup
 COPY scripts/sandbox-init /usr/local/bin/sandbox-init
-RUN chmod +x /usr/local/bin/claude-dtach /usr/local/bin/claude-tmux \
-      /usr/local/bin/codex-dtach /usr/local/bin/codex-tmux \
-      /usr/local/bin/copilot-dtach /usr/local/bin/copilot-tmux \
-      /usr/local/bin/dtach-session /usr/local/bin/git-signing-setup \
+RUN chmod +x /usr/local/bin/claude-dtach /usr/local/bin/claude-shpool /usr/local/bin/claude-tmux \
+      /usr/local/bin/codex-dtach /usr/local/bin/codex-shpool /usr/local/bin/codex-tmux \
+      /usr/local/bin/copilot-dtach /usr/local/bin/copilot-shpool /usr/local/bin/copilot-tmux \
+      /usr/local/bin/dtach-session /usr/local/bin/shpool-session /usr/local/bin/git-signing-setup \
       /usr/local/bin/sandbox-init && \
     echo '#!/bin/bash\nexec claude --dangerously-skip-permissions "$@"' > /usr/local/bin/claude-auto && chmod +x /usr/local/bin/claude-auto && \
     echo '#!/bin/bash\nexec codex --full-auto "$@"' > /usr/local/bin/codex-auto && chmod +x /usr/local/bin/codex-auto && \

@@ -1,0 +1,37 @@
+#!/usr/bin/env python3
+import base64
+import json
+import os
+import shlex
+import sys
+
+
+def main():
+    if len(sys.argv) < 3:
+        sys.exit("usage: shpool-session SESSION COMMAND [ARG...]")
+
+    session = sys.argv[1]
+    if (
+        not session
+        or session in (".", "..")
+        or any(char.isspace() or char in "/{}" for char in session)
+    ):
+        sys.exit(
+            "shpool session names must be nonempty, not '.' or '..', "
+            "and contain no whitespace, slashes, or braces"
+        )
+
+    # shpool templates interpret braces even inside quoted commands. Encode argv
+    # so prompts, JSON, quotes and empty arguments reach the agent unchanged.
+    payload = base64.b64encode(json.dumps(sys.argv[2:]).encode()).decode()
+    runner = (
+        "import base64, json, os, sys; "
+        "argv = json.loads(base64.b64decode(sys.argv[1])); "
+        "os.execvp(argv[0], argv)"
+    )
+    command = shlex.join(["/usr/bin/python3", "-c", runner, payload])
+    os.execvp("shpool", ["shpool", "attach", "--dir", ".", "--cmd", command, "--", session])
+
+
+if __name__ == "__main__":
+    main()

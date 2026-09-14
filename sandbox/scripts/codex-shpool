@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+session="${CODEX_SHPOOL_SESSION:-codex}"
+
+exec shpool-session "$session" codex-auto "$@"
