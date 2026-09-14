@@ -44,9 +44,6 @@ gh_token_flag := if env("GH_TOKEN", "") != "" { "--env GH_TOKEN" } else { "" }
 # Default container name for the `run-tmux` family of recipes (override via env)
 tmux_sandbox_name := env("TMUX_SANDBOX_NAME", "tmux-sandbox")
 
-# Default container name for persistent Copilot runs (override via env)
-copilot_sandbox_name := env("COPILOT_SANDBOX_NAME", "copilot-sandbox")
-
 # Tailscale auth-key passthrough: include --env and --authkey flags when TS_AUTHKEY is set
 ts_authkey_env := if env("TS_AUTHKEY", "") != "" { "--env TS_AUTHKEY" } else { "" }
 ts_authkey_flag := if env("TS_AUTHKEY", "") != "" { "--authkey=$TS_AUTHKEY" } else { "" }
@@ -185,12 +182,14 @@ run-copilot *args: _system-ensure
       --workdir {{mount}} \
       {{image}} /bin/bash -lc 'copilot update || echo "warning: copilot update failed, continuing"; copilot-auto; exec /bin/bash'
 
-# Open a shell in a named Copilot container that persists across stop/start cycles
+# Create or reuse a persistent sandbox with Copilot authentication and open a shell
 [group('run')]
-run-copilot-persistent *args: _system-ensure
+[positional-arguments]
+up container_name="sandbox" *args: _system-ensure
     #!/usr/bin/env bash
     set -euo pipefail
-    name="{{copilot_sandbox_name}}"
+    name="$1"
+    shift
     if container inspect "$name" >/dev/null 2>&1; then
         if ! container start "$name" >/dev/null 2>&1 \
           && ! container exec "$name" /usr/bin/true >/dev/null 2>&1; then
@@ -199,21 +198,25 @@ run-copilot-persistent *args: _system-ensure
         fi
         echo "Using existing sandbox '$name'..."
     else
-        COPILOT_GITHUB_TOKEN="$(just --justfile {{secret_justfile}} get "{{copilot_secret_name}}")"
+        COPILOT_GITHUB_TOKEN="$(just --justfile {{quote(secret_justfile)}} get {{quote(copilot_secret_name)}})"
         export COPILOT_GITHUB_TOKEN
         echo "Creating persistent sandbox '$name'..."
         container run -d \
           --name "$name" \
-          --cpus {{cpus}} --memory {{memory}} \
+          --cpus {{quote(cpus)}} --memory {{quote(memory)}} \
           {{ssh_flag}} \
           --env COPILOT_GITHUB_TOKEN \
           {{gh_token_flag}} \
-          {{args}} \
-          --volume {{invocation_directory()}}:{{mount}} \
-          --workdir {{mount}} \
-          {{image}} /bin/bash -lc 'exec sleep infinity' >/dev/null
+          "$@" \
+          --volume {{quote(invocation_directory() + ":" + mount)}} \
+          --workdir {{quote(mount)}} \
+          {{quote(image)}} /bin/bash -lc 'exec sleep infinity' >/dev/null
     fi
     exec container exec -it "$name" /bin/bash -l
+
+# Stop a persistent sandbox without deleting its filesystem
+[group('run')]
+down container_name="sandbox": (stop container_name)
 
 # Detached sandbox in tmux (survives terminal disconnect; run `copilot-auto` yourself inside)
 [group('run')]
@@ -317,7 +320,7 @@ start container_name: _system-ensure
 # Stop a named sandbox
 [group('named')]
 stop container_name: _system-ensure
-    container stop {{container_name}}
+    container stop -- {{quote(container_name)}}
 
 # Delete a named sandbox (stops first if running)
 [group('named')]

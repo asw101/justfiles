@@ -36,13 +36,15 @@ Run `just` to see all available recipes. Highlights:
 | `image-build` | Build the sandbox image |
 | `run [args]` | Interactive shell with current directory mounted |
 | `run-copilot [args]` | Pull `COPILOT_GITHUB_TOKEN` from [`secret`](../secret/), optionally forward host `GH_TOKEN`, update Copilot CLI, launch in YOLO mode |
-| `run-copilot-persistent [args]` | Open a shell in a persistent named container with Copilot authentication |
+| `up [name] [args]` | Create or start a persistent sandbox and open a shell with Copilot authentication (default name: `sandbox`) |
+| `down [name]` | Stop a persistent sandbox without deleting it (default name: `sandbox`) |
 | `run-tmux [args]` | Detached sandbox with persistent tmux session — resumable across terminal disconnects (does not auto-launch Copilot) |
 | `attach-tmux [name]` | Re-attach to the tmux session of a `run-tmux` sandbox |
 | `stop-tmux [name]` | Stop the `run-tmux` sandbox container |
 | `run-project <project> [args]` | Run with SSH and a project directory mounted |
 | `create-named <name> <project>` | Create a persistent named sandbox |
 | `attach <name>` | Attach to a named sandbox |
+| `delete <name>` | Stop and permanently delete a container; an explicit name is required |
 | `image-release` | Build, tag, and push to GHCR |
 | `run-tailscale` | Run with Tailscale networking |
 
@@ -119,19 +121,25 @@ SECRET_SOURCE=keychain sandbox run-copilot
 sandbox run-copilot --env FOO=bar
 ```
 
-## Persistent Copilot Sandbox
+## Persistent Sandbox
 
-`run-copilot-persistent` provides the same token setup as `run-copilot`, but
+`up` provides the same token setup as `run-copilot`, but
 opens a normal shell in a named container that remains available after the
-shell exits. Inside it, `copilot-shpool` creates or reattaches to a Copilot
-process that survives terminal disconnections.
+shell exits. It does not automatically launch an agent. Inside it,
+`copilot-shpool` creates or reattaches to a Copilot process that survives
+terminal disconnections.
+
+The default container is `sandbox`. Pass a name to use a different one:
+`sandbox up dev` creates or opens `dev`, and `sandbox down dev` stops it without
+deleting its filesystem. Copilot authentication is configured on creation;
+reopening an existing container does not refresh or add its token.
 
 ```bash
 # Rebuild once after installing this recipe
 sandbox image-build
 
 # Create or start the persistent container and open its shell
-sandbox run-copilot-persistent
+sandbox up
 
 # Inside the container, create or reattach to Copilot
 copilot-shpool
@@ -141,19 +149,19 @@ copilot-shpool
 exit
 
 # Later, return to the container shell
-sandbox run-copilot-persistent
+sandbox up
 
 # Reattach to the same Copilot process
 copilot-shpool
 
 # Stop it without deleting its filesystem
-sandbox stop copilot-sandbox
+sandbox down
 
 # Restart it and enter its shell
-sandbox run-copilot-persistent
+sandbox up
 
 # Delete it when it is no longer needed
-sandbox delete copilot-sandbox
+sandbox delete sandbox
 ```
 
 ### Shpool agent sessions
@@ -285,24 +293,29 @@ container from your project directory on the host:
 
 ```bash
 sandbox image-build
-COPILOT_SANDBOX_NAME=copilot-shpool-sandbox sandbox run-copilot-persistent
+sandbox up shpool-dev
 ```
 
 Alternatively, back up any container-only files and configuration before
-deleting the old container with `sandbox delete copilot-sandbox`; the next run
+deleting the old container with `sandbox delete <name>`; `sandbox up <name>`
 will create it from the rebuilt image. Deletion loses the container filesystem,
 but not host-mounted project files.
 
-Override the default container name or Copilot secret with
-`COPILOT_SANDBOX_NAME` or `COPILOT_SECRET_NAME`:
+Existing containers are not renamed or deleted when you switch to this
+interface. To reopen the old default container, run `sandbox up copilot-sandbox`.
+`COPILOT_SANDBOX_NAME` is no longer used; pass the container name directly.
+
+Choose a container name and optionally override the Copilot secret with
+`COPILOT_SECRET_NAME`:
 
 ```bash
-COPILOT_SANDBOX_NAME=my-project \
-COPILOT_SECRET_NAME=github/my-token \
-sandbox run-copilot-persistent
+COPILOT_SECRET_NAME=github/my-token sandbox up my-project
+
+# Extra container flags go after the name, even when using the default name
+sandbox up sandbox --env FOO=bar
 ```
 
-Container flags passed after the recipe name apply only when the container is
+Container flags passed after the container name apply only when the container is
 first created. The project directory mounted on that first run remains the
 workspace on subsequent starts. Closing the host terminal leaves the container
 and its shpool-, dtach-, or tmux-managed agent processes running. Stopping the
