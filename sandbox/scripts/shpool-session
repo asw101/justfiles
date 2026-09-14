@@ -30,7 +30,10 @@ def main():
         "os.execvp(argv[0], argv)"
     )
     command = shlex.join(["/usr/bin/python3", "-c", runner, payload])
-    os.execvp("shpool", ["shpool", "attach", "--dir", ".", "--cmd", command, "--", session])
+    os.execvp(
+        "terminal-session",
+        ["terminal-session", "shpool", "attach", "--dir", ".", "--cmd", command, "--", session],
+    )
 
 
 if __name__ == "__main__":

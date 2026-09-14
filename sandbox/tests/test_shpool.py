@@ -52,12 +52,14 @@ class ShpoolSessionTests(unittest.TestCase):
         ]
         program = "import json, sys; print(json.dumps(sys.argv[1:]))"
         binary, command = self.launch("-named", sys.executable, "-c", program, *args)
-        self.assertEqual(binary, "shpool")
-        self.assertEqual(command[:5], ["shpool", "attach", "--dir", ".", "--cmd"])
-        self.assertEqual(command[6:], ["--", "-named"])
-        self.assertNotIn("{", command[5])
+        self.assertEqual(binary, "terminal-session")
+        self.assertEqual(
+            command[:6], ["terminal-session", "shpool", "attach", "--dir", ".", "--cmd"]
+        )
+        self.assertEqual(command[7:], ["--", "-named"])
+        self.assertNotIn("{", command[6])
         result = subprocess.run(
-            shlex.split(command[5]), check=True, capture_output=True, text=True
+            shlex.split(command[6]), check=True, capture_output=True, text=True
         )
         self.assertEqual(json.loads(result.stdout), args)
 
@@ -74,7 +76,7 @@ class ShpoolSessionTests(unittest.TestCase):
     def test_exec_failure_is_not_hidden(self):
         with (
             patch.object(sys, "argv", ["shpool-session", "session", "true"]),
-            patch("os.execvp", side_effect=FileNotFoundError("shpool")),
+            patch("os.execvp", side_effect=FileNotFoundError("terminal-session")),
             self.assertRaises(FileNotFoundError),
         ):
             runpy.run_path(str(SCRIPTS / "shpool-session"), run_name="__main__")
@@ -112,6 +114,46 @@ class AgentWrapperTests(unittest.TestCase):
                     self.assertEqual(
                         json.loads(result.stdout),
                         [session or agent, f"{agent}-auto", "--flag", "a b", ""],
+                    )
+
+    def test_dtach_uses_terminal_cleanup_launcher(self):
+        (self.bin / "terminal-session").symlink_to(self.bin / "shpool-session")
+        result = subprocess.run(
+            ["bash", str(SCRIPTS / "dtach-session"), "/tmp/a socket", "codex-auto", "a b", ""],
+            env=self.env,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            json.loads(result.stdout),
+            ["dtach", "-A", "/tmp/a socket", "-z", "-r", "winch", "codex-auto", "a b", ""],
+        )
+
+    def test_codex_auto_defaults_and_arguments(self):
+        (self.bin / "codex").symlink_to(self.bin / "shpool-session")
+        for dockerfile in (
+            SANDBOX / "Dockerfile",
+            SANDBOX.parent / "cmbox" / "base" / "Dockerfile",
+        ):
+            line = next(
+                line
+                for line in dockerfile.read_text().splitlines()
+                if "> /usr/local/bin/codex-auto " in line
+            )
+            script = shlex.split(line.removesuffix("\\"))[1].replace("\\n", "\n")
+            for args in ([], ["resume", "--last"], ["a b", "", '{"key": "value"}']):
+                with self.subTest(dockerfile=dockerfile, args=args):
+                    result = subprocess.run(
+                        ["bash", "-c", script, "codex-auto", *args],
+                        env=self.env,
+                        capture_output=True,
+                        text=True,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(
+                        json.loads(result.stdout),
+                        ["--yolo", *args],
                     )
 
     def test_copilot(self):

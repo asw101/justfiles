@@ -108,16 +108,18 @@ COPY scripts/copilot-shpool /usr/local/bin/copilot-shpool
 COPY scripts/copilot-tmux /usr/local/bin/copilot-tmux
 COPY scripts/dtach-session /usr/local/bin/dtach-session
 COPY scripts/shpool-session /usr/local/bin/shpool-session
+COPY scripts/terminal-session /usr/local/bin/terminal-session
 COPY shpool.toml /etc/shpool/config.toml
 COPY scripts/git-signing-setup /usr/local/bin/git-signing-setup
 COPY scripts/sandbox-init /usr/local/bin/sandbox-init
 RUN chmod +x /usr/local/bin/claude-dtach /usr/local/bin/claude-shpool /usr/local/bin/claude-tmux \
       /usr/local/bin/codex-dtach /usr/local/bin/codex-shpool /usr/local/bin/codex-tmux \
       /usr/local/bin/copilot-dtach /usr/local/bin/copilot-shpool /usr/local/bin/copilot-tmux \
-      /usr/local/bin/dtach-session /usr/local/bin/shpool-session /usr/local/bin/git-signing-setup \
+      /usr/local/bin/dtach-session /usr/local/bin/shpool-session /usr/local/bin/terminal-session \
+      /usr/local/bin/git-signing-setup \
       /usr/local/bin/sandbox-init && \
     echo '#!/bin/bash\nexec claude --dangerously-skip-permissions "$@"' > /usr/local/bin/claude-auto && chmod +x /usr/local/bin/claude-auto && \
-    echo '#!/bin/bash\nexec codex --full-auto "$@"' > /usr/local/bin/codex-auto && chmod +x /usr/local/bin/codex-auto && \
+    echo '#!/bin/bash\nexec codex --yolo "$@"' > /usr/local/bin/codex-auto && chmod +x /usr/local/bin/codex-auto && \
     echo '#!/bin/bash\nexec copilot --allow-all-tools --model gpt-6-astra --effort high "$@"' > /usr/local/bin/copilot-auto && chmod +x /usr/local/bin/copilot-auto
 
 USER agent

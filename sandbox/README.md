@@ -181,8 +181,21 @@ copilot-shpool
 These use the same `*-auto` commands and permission settings as the existing
 dtach/tmux helpers. Copilot is updated only when a new session starts.
 
+`codex-auto` uses `--yolo`, disabling approval prompts and Codex's internal
+sandbox. It relies on the container for isolation; host-mounted files and
+credentials remain accessible. If an existing container reports
+`unexpected argument '--full-auto'`, use this command until you
+[recreate it from the updated image](#updating-an-existing-sandbox):
+
+```bash
+shpool-session "${CODEX_SHPOOL_SESSION:-codex}" codex --yolo
+```
+
 Detach with **Ctrl-Space, then Ctrl-q** and run the same helper to reattach.
 Shpool starts its daemon automatically; no systemd service is needed.
+The helpers restore terminal settings and disable mouse reporting on detach or
+exit, so scrolling or clicking at the shell prompt does not require a `reset`.
+This cleanup preserves scrollback and does not stop a detached agent session.
 
 ```bash
 shpool list
