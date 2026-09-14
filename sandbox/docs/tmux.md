@@ -2,6 +2,10 @@
 
 When you SSH into the container via Tailscale, your coding agent session will die if the SSH connection drops. This container is pre-configured to make tmux effortless.
 
+The image configures tmux to advertise `tmux-256color` and explicitly propagates
+a UTF-8 locale to tmux panes so full-screen agent interfaces render symbols and
+colors correctly.
+
 ## What's Built In
 
 - **Auto-attach on SSH** — tmux starts automatically when you SSH in. If a session already exists, it reattaches. No commands to remember.

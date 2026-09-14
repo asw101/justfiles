@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+session="${COPILOT_TMUX_SESSION:-copilot}"
+copilot_args=()
+
+if [ -n "${COPILOT_SESSION_NAME:-}" ]; then
+  copilot_args+=(--name "$COPILOT_SESSION_NAME")
+fi
+
+case "${COPILOT_REMOTE:-0}" in
+  0|false|no|"") ;;
+  1|true|yes) copilot_args+=(--remote) ;;
+  *)
+    echo "COPILOT_REMOTE must be 1, true, yes, 0, false, or no" >&2
+    exit 2
+    ;;
+esac
+
+if tmux has-session -t "=$session" 2>/dev/null; then
+  exec tmux attach-session -t "=$session"
+fi
+
+exec tmux new-session -s "$session" /bin/bash -lc \
+  'copilot update || echo "warning: copilot update failed, continuing"; exec copilot-auto "$@"' \
+  copilot-tmux "${copilot_args[@]}" "$@"

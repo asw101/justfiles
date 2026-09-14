@@ -17,4 +17,4 @@ cleanup_terminal() {
 }
 
 trap cleanup_terminal EXIT
-dtach -A "$socket" -z "$@"
+dtach -A "$socket" -z -r winch "$@"

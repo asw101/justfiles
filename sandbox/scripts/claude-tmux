@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+session="${CLAUDE_TMUX_SESSION:-claude}"
+
+if tmux has-session -t "=$session" 2>/dev/null; then
+  exec tmux attach-session -t "=$session"
+fi
+
+exec tmux new-session -s "$session" /usr/local/bin/claude-auto "$@"

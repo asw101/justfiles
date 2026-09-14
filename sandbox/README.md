@@ -167,8 +167,35 @@ copilot-dtach
 
 Press `Ctrl-\` to detach from any helper, then run the same helper again to
 reattach. The helpers restore normal terminal and mouse modes after detaching.
+On reattach, they send a terminal resize signal so full-screen agent interfaces
+redraw the complete window.
 Override their socket paths with `CLAUDE_DTACH_SOCKET`, `CODEX_DTACH_SOCKET`,
 or `COPILOT_DTACH_SOCKET`.
+
+For persistent scrollback, reliable full-screen redraws, and multiple windows,
+use the equivalent tmux helpers:
+
+```bash
+claude-tmux
+codex-tmux
+copilot-tmux
+```
+
+Each command creates its agent's tmux session or attaches to it when it already
+exists. Detach with `Ctrl-a d`, then run the same command to reattach. Override
+the tmux session names with `CLAUDE_TMUX_SESSION`, `CODEX_TMUX_SESSION`, or
+`COPILOT_TMUX_SESSION`. For example:
+
+```bash
+COPILOT_TMUX_SESSION=feature \
+COPILOT_SESSION_NAME=feature \
+COPILOT_REMOTE=1 \
+copilot-tmux
+```
+
+Startup arguments and environment settings apply only when a helper creates its
+tmux session. When that tmux session already exists, the helper reattaches and
+ignores new startup arguments.
 
 Name a new Copilot session and enable remote control with environment variables:
 

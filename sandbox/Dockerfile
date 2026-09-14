@@ -36,6 +36,8 @@ RUN useradd -m -s /bin/bash agent && \
 # Install Homebrew as agent user
 USER agent
 ENV HOME=/home/agent
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
 WORKDIR /home/agent
 
 RUN NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
@@ -46,12 +48,18 @@ ENV PATH="/home/agent/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/bin:/home/agent/
 # Set a short prompt, add brew to PATH for login shells (Tailscale SSH),
 # and auto-attach to tmux on SSH login
 RUN echo 'export PATH="/home/agent/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/bin:/home/agent/.cargo/bin:/home/agent/.local/bin:$PATH"' >> /home/agent/.bashrc && \
+    echo 'export LANG=C.UTF-8' >> /home/agent/.bashrc && \
+    echo 'export LC_ALL=C.UTF-8' >> /home/agent/.bashrc && \
     echo "PS1='\\W \$ '" >> /home/agent/.bashrc && \
     echo 'if [ -n "$SSH_CONNECTION" ] && [ -z "$TMUX" ]; then tmux attach -t main 2>/dev/null || tmux new -s main; fi' >> /home/agent/.bashrc && \
     echo '[ -f ~/.bashrc ] && . ~/.bashrc' > /home/agent/.profile
 
 # Configure tmux: easy prefix (Ctrl+a), mouse mode, status bar hint
 RUN printf '%s\n' \
+    'set -g default-terminal "tmux-256color"' \
+    'set -as terminal-features ",*:RGB"' \
+    'set-environment -g LANG C.UTF-8' \
+    'set-environment -g LC_ALL C.UTF-8' \
     'set -g prefix C-a' \
     'unbind C-b' \
     'bind C-a send-prefix' \
@@ -90,14 +98,19 @@ RUN arch="$(dpkg --print-architecture)" && \
 
 # Create wrapper scripts
 COPY scripts/claude-dtach /usr/local/bin/claude-dtach
+COPY scripts/claude-tmux /usr/local/bin/claude-tmux
 COPY scripts/codex-dtach /usr/local/bin/codex-dtach
+COPY scripts/codex-tmux /usr/local/bin/codex-tmux
 COPY scripts/copilot-dtach /usr/local/bin/copilot-dtach
+COPY scripts/copilot-tmux /usr/local/bin/copilot-tmux
 COPY scripts/dtach-session /usr/local/bin/dtach-session
 COPY scripts/git-signing-setup /usr/local/bin/git-signing-setup
 COPY scripts/sandbox-init /usr/local/bin/sandbox-init
-RUN chmod +x /usr/local/bin/claude-dtach /usr/local/bin/codex-dtach \
-      /usr/local/bin/copilot-dtach /usr/local/bin/dtach-session \
-      /usr/local/bin/git-signing-setup /usr/local/bin/sandbox-init && \
+RUN chmod +x /usr/local/bin/claude-dtach /usr/local/bin/claude-tmux \
+      /usr/local/bin/codex-dtach /usr/local/bin/codex-tmux \
+      /usr/local/bin/copilot-dtach /usr/local/bin/copilot-tmux \
+      /usr/local/bin/dtach-session /usr/local/bin/git-signing-setup \
+      /usr/local/bin/sandbox-init && \
     echo '#!/bin/bash\nexec claude --dangerously-skip-permissions "$@"' > /usr/local/bin/claude-auto && chmod +x /usr/local/bin/claude-auto && \
     echo '#!/bin/bash\nexec codex --full-auto "$@"' > /usr/local/bin/codex-auto && chmod +x /usr/local/bin/codex-auto && \
     echo '#!/bin/bash\nexec copilot --allow-all-tools --model gpt-6-astra --effort high "$@"' > /usr/local/bin/copilot-auto && chmod +x /usr/local/bin/copilot-auto
