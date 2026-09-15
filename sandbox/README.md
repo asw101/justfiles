@@ -27,6 +27,10 @@ intelligence, and defaults to GPT-6 Astra both directly and through
 `copilot-auto`. Sandbox launch recipes forward the host SSH agent by default for
 Git authentication and SSH commit signing.
 
+Bubblewrap (`bwrap`) is included for Codex's Linux sandbox.
+Codex is installed with the [official standalone installer](https://chatgpt.com/codex/install.sh),
+not Homebrew, so `codex remote-control` can find its managed app-server package.
+
 ## Recipes
 
 Run `just` to see all available recipes. Highlights:
@@ -190,8 +194,8 @@ codex-shpool
 copilot-shpool
 ```
 
-These use the same `*-auto` commands and permission settings as the existing
-dtach/tmux helpers. Copilot is updated only when a new session starts.
+These use the corresponding `*-auto` commands and their permission settings.
+Copilot is updated only when a new session starts.
 
 `codex-auto` uses `--yolo`, disabling approval prompts and Codex's internal
 sandbox. It relies on the container for isolation; host-mounted files and
@@ -240,8 +244,13 @@ Session names must not contain whitespace, slashes, or braces, and cannot be
 `.` or `..`. Arguments are forwarded to the agent, not to shpool. The current
 directory, startup arguments, and environment settings apply only when creating
 a session; reattaching preserves the existing process and its original directory
-and settings. `COPILOT_SESSION_NAME` and `COPILOT_REMOTE` work just like in the
-dtach/tmux helpers.
+and settings. `COPILOT_SESSION_NAME` sets Copilot's `--name`, and
+`COPILOT_REMOTE=1` (or `true` or `yes`) enables `--remote`. You can also pass
+the native flags directly:
+
+```bash
+copilot-shpool --name my-project --remote
+```
 
 The image installs shpool with Homebrew and configures screen restoration and
 environment forwarding in `/etc/shpool/config.toml`. This includes PATH, GitHub
@@ -253,68 +262,12 @@ if you set `forward_env`, include
 the existing entries from `/etc/shpool/config.toml` because the list is replaced,
 not extended. Other exported variables are not automatically forwarded.
 
-### Existing dtach and tmux helpers
-
-The dtach helpers remain available:
-
-```bash
-claude-dtach
-codex-dtach
-copilot-dtach
-```
-
-Press `Ctrl-\` to detach from any helper, then run the same helper again to
-reattach. The helpers restore normal terminal and mouse modes after detaching.
-On reattach, they send a terminal resize signal so full-screen agent interfaces
-redraw the complete window.
-Override their socket paths with `CLAUDE_DTACH_SOCKET`, `CODEX_DTACH_SOCKET`,
-or `COPILOT_DTACH_SOCKET`.
-
-For persistent scrollback, reliable full-screen redraws, and multiple windows,
-use the equivalent tmux helpers:
-
-```bash
-claude-tmux
-codex-tmux
-copilot-tmux
-```
-
-Each command creates its agent's tmux session or attaches to it when it already
-exists. Detach with `Ctrl-a d`, then run the same command to reattach. Override
-the tmux session names with `CLAUDE_TMUX_SESSION`, `CODEX_TMUX_SESSION`, or
-`COPILOT_TMUX_SESSION`. For example:
-
-```bash
-COPILOT_TMUX_SESSION=feature \
-COPILOT_SESSION_NAME=feature \
-COPILOT_REMOTE=1 \
-copilot-tmux
-```
-
-Startup arguments and environment settings apply only when a helper creates its
-tmux session. When that tmux session already exists, the helper reattaches and
-ignores new startup arguments.
-
-Name a new Copilot session and enable remote control with environment variables:
-
-```bash
-COPILOT_SESSION_NAME=my-project COPILOT_REMOTE=1 copilot-dtach
-```
-
-This starts Copilot as `copilot --name my-project --remote`. The values apply
-only when `dtach` creates a new Copilot process; when the socket already has a
-running process, `copilot-dtach` reattaches to it instead. You can also pass the
-native flags directly:
-
-```bash
-copilot-dtach --name my-project --remote
-```
-
 ### Updating an existing sandbox
 
-Rebuilding the image does not update existing containers. To try shpool without
-deleting your existing sandbox, build the image and create a differently named
-container from your project directory on the host:
+Rebuilding the image does not update existing containers or remove their old
+helper scripts. To use the updated image without deleting your existing sandbox,
+build it and create a differently named container from your project directory
+on the host:
 
 ```bash
 sandbox image-build
@@ -343,7 +296,7 @@ sandbox up sandbox --env FOO=bar
 Container flags passed after the container name apply only when the container is
 first created. The project directory mounted on that first run remains the
 workspace on subsequent starts. Closing the host terminal leaves the container
-and its shpool-, dtach-, or tmux-managed agent processes running. Stopping the
+and its background agent processes running. Stopping the
 container terminates those processes and their session managers; after
 restarting, run the relevant helper to create a new agent process in the
 preserved container. Shpool does not preserve live processes across container

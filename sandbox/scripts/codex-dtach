@@ -1,6 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-
-socket="${CODEX_DTACH_SOCKET:-/tmp/codex.dtach}"
-
-exec dtach-session "$socket" codex-auto "$@"

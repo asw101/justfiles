@@ -5,12 +5,12 @@ USER root
 # Install dependencies for Homebrew and Tailscale
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     build-essential \
+    bubblewrap \
     curl \
     file \
     git \
     procps \
     ca-certificates \
-    dtach \
     iptables \
     sudo \
     tmux \
@@ -68,8 +68,8 @@ RUN printf '%s\n' \
     'set -g history-limit 50000' \
     > /home/agent/.tmux.conf
 
-# Install development tools, language servers, and coding agents
-RUN brew install gh just go gopls rust-analyzer codex shpool
+# Install development tools, language servers, and session management
+RUN brew install gh just go gopls rust-analyzer shpool
 
 # Install the stable Rust toolchain with Cargo, Rustfmt, and Clippy
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
@@ -78,6 +78,11 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
 
 # Install Claude Code (latest release, direct binary download)
 RUN curl -fsSL https://claude.ai/install.sh | bash
+
+# Install Codex's standalone package, required by the remote-control daemon
+RUN curl -fsSL https://chatgpt.com/codex/install.sh -o /tmp/codex-install.sh && \
+    CODEX_NON_INTERACTIVE=1 sh /tmp/codex-install.sh && \
+    rm -f /tmp/codex-install.sh
 
 # Install Copilot CLI (latest release, direct binary download)
 RUN curl -fsSL https://gh.io/copilot-install | bash
@@ -95,25 +100,16 @@ RUN arch="$(dpkg --print-architecture)" && \
     rm -f "/tmp/mint_linux_${arch}" /tmp/SHA256SUMS
 
 # Create wrapper scripts
-COPY scripts/claude-dtach /usr/local/bin/claude-dtach
 COPY scripts/claude-shpool /usr/local/bin/claude-shpool
-COPY scripts/claude-tmux /usr/local/bin/claude-tmux
-COPY scripts/codex-dtach /usr/local/bin/codex-dtach
 COPY scripts/codex-shpool /usr/local/bin/codex-shpool
-COPY scripts/codex-tmux /usr/local/bin/codex-tmux
-COPY scripts/copilot-dtach /usr/local/bin/copilot-dtach
 COPY scripts/copilot-shpool /usr/local/bin/copilot-shpool
-COPY scripts/copilot-tmux /usr/local/bin/copilot-tmux
-COPY scripts/dtach-session /usr/local/bin/dtach-session
 COPY scripts/shpool-session /usr/local/bin/shpool-session
 COPY scripts/terminal-session /usr/local/bin/terminal-session
 COPY shpool.toml /etc/shpool/config.toml
 COPY scripts/git-signing-setup /usr/local/bin/git-signing-setup
 COPY scripts/sandbox-init /usr/local/bin/sandbox-init
-RUN chmod +x /usr/local/bin/claude-dtach /usr/local/bin/claude-shpool /usr/local/bin/claude-tmux \
-      /usr/local/bin/codex-dtach /usr/local/bin/codex-shpool /usr/local/bin/codex-tmux \
-      /usr/local/bin/copilot-dtach /usr/local/bin/copilot-shpool /usr/local/bin/copilot-tmux \
-      /usr/local/bin/dtach-session /usr/local/bin/shpool-session /usr/local/bin/terminal-session \
+RUN chmod +x /usr/local/bin/claude-shpool /usr/local/bin/codex-shpool \
+      /usr/local/bin/copilot-shpool /usr/local/bin/shpool-session /usr/local/bin/terminal-session \
       /usr/local/bin/git-signing-setup \
       /usr/local/bin/sandbox-init && \
     echo '#!/bin/bash\nexec claude --dangerously-skip-permissions "$@"' > /usr/local/bin/claude-auto && chmod +x /usr/local/bin/claude-auto && \

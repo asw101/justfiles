@@ -30,6 +30,15 @@ Code, GitHub Copilot CLI, OpenAI Codex CLI). `copilot-auto` defaults to GPT-6
 Astra. Claude Remote Control can run either as a host-launched process or as a
 systemd service inside the machine.
 
+Bubblewrap (`bwrap`) is included for Codex's Linux sandbox.
+Codex is installed with the [official standalone installer](https://chatgpt.com/codex/install.sh),
+not Homebrew, so `codex remote-control` can find its managed app-server package.
+The standalone base seeds a `~/.codex/packages/standalone` link to the shared
+installation under `/opt/cmbox`; each machine user's credentials and configuration
+remain in their own `~/.codex`.
+Existing machine users should run the installer in their own shell; rebuilding
+an image does not update their home directories.
+
 ## Recipes
 
 Run `cmbox` to see all available recipes. Highlights:

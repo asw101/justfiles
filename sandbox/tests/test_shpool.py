@@ -116,20 +116,6 @@ class AgentWrapperTests(unittest.TestCase):
                         [session or agent, f"{agent}-auto", "--flag", "a b", ""],
                     )
 
-    def test_dtach_uses_terminal_cleanup_launcher(self):
-        (self.bin / "terminal-session").symlink_to(self.bin / "shpool-session")
-        result = subprocess.run(
-            ["bash", str(SCRIPTS / "dtach-session"), "/tmp/a socket", "codex-auto", "a b", ""],
-            env=self.env,
-            capture_output=True,
-            text=True,
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(
-            json.loads(result.stdout),
-            ["dtach", "-A", "/tmp/a socket", "-z", "-r", "winch", "codex-auto", "a b", ""],
-        )
-
     def test_codex_auto_defaults_and_arguments(self):
         (self.bin / "codex").symlink_to(self.bin / "shpool-session")
         for dockerfile in (

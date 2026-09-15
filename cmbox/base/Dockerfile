@@ -23,6 +23,7 @@ USER root
 # one failed build at a time.
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     build-essential \
+    bubblewrap \
     curl \
     file \
     git \
@@ -89,8 +90,8 @@ RUN printf '%s\n' \
     'set -g history-limit 50000' \
     > /opt/cmbox/.tmux.conf
 
-# Install development tools, language servers, and coding agents
-RUN brew install gh just go gopls rust-analyzer codex
+# Install development tools and language servers
+RUN brew install gh just go gopls rust-analyzer
 
 # Install the stable Rust toolchain with Cargo, Rustfmt, and Clippy
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
@@ -99,6 +100,11 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
 
 # Install Claude Code (latest release, direct binary download)
 RUN curl -fsSL https://claude.ai/install.sh | bash
+
+# Install Codex's standalone package, required by the remote-control daemon
+RUN curl -fsSL https://chatgpt.com/codex/install.sh -o /tmp/codex-install.sh && \
+    CODEX_NON_INTERACTIVE=1 sh /tmp/codex-install.sh && \
+    rm -f /tmp/codex-install.sh
 
 # Install Copilot CLI (latest release, direct binary download)
 RUN curl -fsSL https://gh.io/copilot-install | bash
@@ -179,6 +185,10 @@ RUN mkdir -p /opt/cmbox/.claude && \
     echo '{"attribution":{"commit":"","pr":""}}' > /opt/cmbox/.claude/settings.json
 
 USER root
+
+# Expose the shared package at the per-user path required by Codex's daemon.
+RUN install -d /etc/skel/.codex/packages && \
+    ln -s /opt/cmbox/.codex/packages/standalone /etc/skel/.codex/packages/standalone
 
 # Apple creates the machine user at runtime with a host-derived UID. Keep the
 # shared tool installations writable without depending on that UID, and seed

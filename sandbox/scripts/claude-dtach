@@ -1,6 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-
-socket="${CLAUDE_DTACH_SOCKET:-/tmp/claude.dtach}"
-
-exec dtach-session "$socket" claude-auto "$@"
